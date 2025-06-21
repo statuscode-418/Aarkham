@@ -9,7 +9,6 @@ import ServicesComponent from "@/components/services-component"
 import Footer from "@/components/footer"
 import FeaturesSectionDemo from "@/components/about-our-technology"
 import FaqSection from "@/components/faq-section"
-import {NavbarDemo} from "@/components/Navbar"
 import {
   Navbar,
   NavBody,

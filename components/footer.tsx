@@ -39,7 +39,7 @@ export default function Footer() {
   ]
 
   return (
-    <footer className="bg-[#26242E] border-t border-gray-800">
+    <footer className="bg-[#010314] border-t border-gray-800 w-full flex justify-center">
       {/* Main Footer Content */}
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-12 md:py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-8 lg:gap-12">
@@ -119,7 +119,7 @@ export default function Footer() {
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="px-6 py-2 bg-gradient-to-r from-cyan-500 to-emerald-500 text-white rounded-lg font-medium text-sm hover:from-cyan-600 hover:to-emerald-600 transition-all duration-200 whitespace-nowrap"
+                className="px-6 py-2 bg-gradient-to-b from-[#baa3e4] via-[#7e61b8] to-[#0D001D] text-white rounded-lg font-medium text-sm hover:from-cyan-600 hover:to-emerald-600 transition-all duration-200 whitespace-nowrap"
               >
                 Subscribe
               </motion.button>
