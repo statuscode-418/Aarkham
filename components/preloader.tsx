@@ -5,8 +5,8 @@ const Preloader = () => {
     <div className="flex flex-col w-full h-min-screen items-center justify-center min-h-screen bg-[#0D001D]">
       <Loader />
       <h2 className="mt-20 text-2xl font-semibold text-white text-center">
-        Welcome to Arkham<br />
-        <span className="text-base font-normal text-slate-300">Built by Statuscode</span>
+        Welcome to Aarkham<br />
+        <span className="text-base font-normal text-slate-300">Built by status_code-418</span>
       </h2>
     </div>
   );
