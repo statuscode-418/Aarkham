@@ -27,7 +27,7 @@ if not DB_URL:
     raise ValueError("MONGO_CONNECTION_STRING environment variable is not set.")
 
 # Import our flash loan tools
-from dummy_loan_tools import (
+from flash_loan_tools import (
     create_flash_loan_strategy,
     execute_flash_loan,
     get_strategy_details,
