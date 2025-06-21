@@ -16,6 +16,10 @@ from agno.storage.mongodb import MongoDbStorage
 import os
 import uuid
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Environment setup
 DB_URL = os.getenv("MONGO_CONNECTION_STRING")
@@ -23,16 +27,17 @@ if not DB_URL:
     raise ValueError("MONGO_CONNECTION_STRING environment variable is not set.")
 
 # Import our flash loan tools
-from dummy_loan_tools import (
+from flash_loan_tools import (
     create_flash_loan_strategy,
     execute_flash_loan,
-    get_strategy_template,
-    calculate_profit_estimate,
-    get_gas_estimate,
-    validate_strategy_safety,
-    get_arbitrage_opportunities,
-    monitor_liquidation_opportunities,
-    analyze_gas_optimization
+    get_strategy_details,
+    validate_profitability,
+    estimate_gas_cost,
+    analyze_arbitrage_opportunity,
+    monitor_strategy_performance,
+    get_market_conditions,
+    check_flash_loan_availability,
+    get_uniswap_quote
 )
 
 # Initialize storage
@@ -60,13 +65,14 @@ def get_agent_for_session(session_id: Optional[str] = None, user_id: str = "user
             DuckDuckGoTools(),
             create_flash_loan_strategy,
             execute_flash_loan,
-            get_strategy_template,
-            calculate_profit_estimate,
-            get_gas_estimate,
-            validate_strategy_safety,
-            get_arbitrage_opportunities,
-            monitor_liquidation_opportunities,
-            analyze_gas_optimization
+            get_strategy_details,
+            validate_profitability,
+            estimate_gas_cost,
+            analyze_arbitrage_opportunity,
+            monitor_strategy_performance,
+            get_market_conditions,
+            check_flash_loan_availability,
+            get_uniswap_quote
         ],
         description="Flash Loan AI Agent - I can help you create, execute, and optimize flash loan strategies on DeFi protocols.",
         storage=storage,
@@ -133,7 +139,9 @@ def list_sessions(user_id: str = "user") -> List[str]:
     List all available sessions from storage.
     """
     try:
-        return storage.get_all_session_ids(user_id)
+        # Get all session IDs for the user
+        sessions = storage.get_all_session_ids(user_id)
+        return sessions if sessions else []
     except Exception as e:
         print(f"Error listing sessions: {e}")
         return []
@@ -143,8 +151,11 @@ def load_session_history(session_id: str):
     Load conversation history for a session.
     """
     try:
-        messages = storage.read_chat_history(session_id)
-        return messages
+        # Use the correct method name for the MongoDbStorage
+        session = storage.read(session_id)
+        if session and hasattr(session, 'messages'):
+            return session.messages
+        return []
     except Exception as e:
         print(f"Error loading session history: {e}")
         return []

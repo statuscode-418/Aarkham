@@ -9,6 +9,8 @@ dependencies = [
     "duckduckgo-search>=8.0.4",
     "fastapi>=0.115.13",
     "google-genai>=1.21.1",
+    "pymongo>=4.13.2",
+    "python-dotenv>=1.1.0",
     "srv>=1.1.0",
     "uvicorn>=0.30.0",
 ]
