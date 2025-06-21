@@ -17,7 +17,7 @@ export default function FaqSection() {
             <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-white to-cyan-200 bg-clip-text text-transparent">
               Frequently Asked Questions
             </h2>
-            <p className="text-xl text-slate-300">Everything you need to know about our flash loan platform</p>
+            <p className="text-xl text-gray-400">Everything you need to know about our flash loan platform</p>
           </div>
 
           <Accordion type="single" collapsible className="space-y-4">
