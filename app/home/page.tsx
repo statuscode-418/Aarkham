@@ -1,5 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
+import { useRequireAuth, useQRValidation } from "@/hooks/use-auth"
+import { useRouter } from 'next/navigation'
 import FurucomboInterface from "@/components/dragable-cube-component"
 import { Button } from "@/components/ui/moving-border"
 import {
@@ -11,9 +13,13 @@ import {
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ChatWidget } from "@/components/chat/chat-widget"
-import { Sparkles } from "lucide-react"
+import { Sparkles, LogOut } from "lucide-react"
 
 export default function FurucomboPage() {
+  const { isAuthenticated, isLoading, logout } = useRequireAuth()
+  const { isQRValidated } = useQRValidation()
+  const router = useRouter()
+  
   const [started, setStarted] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [tokenName, setTokenName] = useState("")
@@ -25,6 +31,31 @@ export default function FurucomboPage() {
   const [newToken, setNewToken] = useState<any | null>(null)
   const tokenOptions = ["ETH", "USDC", "AAVE", "CRV", "stETH", "1INCH", "COMP", "SUSHI", "YFI"]
   const routerOptions = ["Uniswap", "SushiSwap", "Lido", "Curve", "Compound", "Aave", "1inch", "Yearn"]
+
+  // Redirect to scanning page if QR is not validated
+  useEffect(() => {
+    console.log('Home page: isAuthenticated =', isAuthenticated, 'isQRValidated =', isQRValidated);
+    if (isAuthenticated && !isQRValidated) {
+      console.log('Redirecting to scanning page - QR not validated');
+      // Small delay to ensure state is properly set
+      const timer = setTimeout(() => {
+        router.replace('/scanning-page')
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthenticated, isQRValidated, router])
+
+  // Show loading while checking authentication
+  if (isLoading || !isAuthenticated || !isQRValidated) {
+    return (
+      <div className="min-h-screen w-full bg-black flex items-center justify-center">
+        <div className="text-white text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p>Checking authentication...</p>
+        </div>
+      </div>
+    )
+  }
 
   const handleAddToken = () => {
     if (blockCount === 0 && (!tokenName || !tokenAmount)) return
@@ -45,6 +76,10 @@ export default function FurucomboPage() {
   const handleStart = () => {
     setStarted(true)
     setIsDialogOpen(true)
+  }
+
+  const handleLogout = () => {
+    logout()
   }
 
   return (
@@ -163,6 +198,17 @@ export default function FurucomboPage() {
         walletAddress={walletAddress}
         buttonText={{ open: "Close Chat", closed: "Ask Rohan" }}
       />
+
+      {/* Logout Button */}
+      <div className="fixed top-4 right-4">
+        <Button
+          onClick={handleLogout}
+          className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white rounded-full px-4 py-2"
+        >
+          <LogOut className="w-5 h-5" />
+          <span>Logout</span>
+        </Button>
+      </div>
     </div>
   )
 }

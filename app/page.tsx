@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRedirectIfAuthenticated } from "@/hooks/use-auth"
 import { StarsBackground } from "@/components/stars"
 import { Navigation } from "@/components/navigation"
 import { HeroSection } from "@/components/hero-section"
@@ -24,6 +25,8 @@ import { HeroGeometric } from "@/components/ui/shape-landing-hero"
 import { MarqueeDemo } from "@/components/MarqueeDemo"
 import { ConnectButton } from "@rainbow-me/rainbowkit"
 export default function Page() {
+  const { isAuthenticated, isLoading } = useRedirectIfAuthenticated()
+  
   const navItems = [
       {
         name: "Home",
@@ -59,6 +62,18 @@ export default function Page() {
 
   if (showPreloader) {
     return <Preloader />
+  }
+
+  // If connected, show loading or redirect message
+  if (isAuthenticated) {
+    return (
+      <div className="min-h-screen w-full bg-[#0D001D] flex items-center justify-center">
+        <div className="text-white text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p>Redirecting to dashboard...</p>
+        </div>
+      </div>
+    )
   }
 
 
@@ -150,20 +165,62 @@ export default function Page() {
                       </a>
                     ))}
                     <div className="flex w-full flex-col gap-4">
-                      <NavbarButton
-                        onClick={() => setIsMobileMenuOpen(false)}
-                        variant="primary"
-                        className="w-full"
-                      >
-                        Login
-                      </NavbarButton>
-                      <NavbarButton
-                        onClick={() => setIsMobileMenuOpen(false)}
-                        variant="primary"
-                        className="w-full"
-                      >
-                        Book a call
-                      </NavbarButton>
+                      <ConnectButton.Custom>
+                        {({
+                          account,
+                          chain,
+                          openChainModal,
+                          openConnectModal,
+                          openAccountModal,
+                          mounted,
+                        }) => {
+                          const ready = mounted;
+                          const connected = ready && account && chain;
+
+                          return (
+                            <div
+                              {...(!ready && {
+                                'aria-hidden': true,
+                                style: {
+                                  opacity: 0,
+                                  pointerEvents: 'none',
+                                  userSelect: 'none',
+                                },
+                              })}
+                            >
+                              {(() => {
+                                if (!connected) {
+                                  return (
+                                    <NavbarButton
+                                      onClick={() => {
+                                        openConnectModal();
+                                        setIsMobileMenuOpen(false);
+                                      }}
+                                      variant="primary"
+                                      className="w-full"
+                                    >
+                                      Connect Wallet
+                                    </NavbarButton>
+                                  );
+                                }
+
+                                return (
+                                  <NavbarButton
+                                    onClick={() => {
+                                      openAccountModal();
+                                      setIsMobileMenuOpen(false);
+                                    }}
+                                    variant="primary"
+                                    className="w-full"
+                                  >
+                                    {account.displayName}
+                                  </NavbarButton>
+                                );
+                              })()}
+                            </div>
+                          );
+                        }}
+                      </ConnectButton.Custom>
                     </div>
                   </MobileNavMenu>
                 </MobileNav>
@@ -175,6 +232,61 @@ export default function Page() {
              <HeroGeometric badge="ZKP"
             title1 = "Zero Knowledge Proof"
             title2 = "Flash Loan Application" />
+            
+            {/* Call to Action for Wallet Connection */}
+            <div className="text-center mt-8 px-4">
+              <p className="text-gray-300 text-lg mb-6">
+                Connect your wallet to access the flash loan dashboard
+              </p>
+              <ConnectButton.Custom>
+                {({
+                  account,
+                  chain,
+                  openChainModal,
+                  openConnectModal,
+                  openAccountModal,
+                  mounted,
+                }) => {
+                  const ready = mounted;
+                  const connected = ready && account && chain;
+
+                  return (
+                    <div
+                      {...(!ready && {
+                        'aria-hidden': true,
+                        style: {
+                          opacity: 0,
+                          pointerEvents: 'none',
+                          userSelect: 'none',
+                        },
+                      })}
+                    >
+                      {(() => {
+                        if (!connected) {
+                          return (
+                            <button
+                              onClick={openConnectModal}
+                              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold py-4 px-8 rounded-lg text-lg transition-all duration-300"
+                            >
+                              Connect Wallet to Get Started
+                            </button>
+                          );
+                        }
+
+                        return (
+                          <button
+                            onClick={openAccountModal}
+                            className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white font-bold py-4 px-8 rounded-lg text-lg transition-all duration-300"
+                          >
+                            Connected: {account.displayName}
+                          </button>
+                        );
+                      })()}
+                    </div>
+                  );
+                }}
+              </ConnectButton.Custom>
+            </div>
             </section>  
        {/* Services*/}
         <section id="services" className="w-full h-fit py-7">

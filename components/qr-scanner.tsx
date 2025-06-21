@@ -3,9 +3,11 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { BrowserMultiFormatReader } from '@zxing/library';
 import { validateQRCode } from '../utils/qr-validitor';
+import { useQRValidation } from '../hooks/use-auth';
 
 const QRScanner = () => {
   const router = useRouter();
+  const { setQRValidated } = useQRValidation();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -37,11 +39,18 @@ const QRScanner = () => {
       setResult(validationResult.message);
       
       if (validationResult.success) {
-        // Show success message for 3 seconds before redirecting
+        // Set QR as validated in localStorage with full response
+        console.log('QR validation successful, setting validated state with response:', validationResult);
+        setQRValidated(true, validationResult);
+        setResult(validationResult.message);
+        
+        // Immediate redirect after successful validation  
         setTimeout(() => {
-          router.push('/dashboard');
-        }, 3000);
+          console.log('Redirecting to home page');
+          router.replace('/home'); // Use replace instead of push to avoid back button issues
+        }, 1500);
       } else {
+        console.log('QR validation failed:', validationResult.message);
         setError(validationResult.message);
       }
     } catch (err: any) {
@@ -128,7 +137,7 @@ const QRScanner = () => {
               Validation completed in {validationTime.toFixed(2)}ms
             </p>
           )}
-          <p className="text-green-200 mt-2">Redirecting to dashboard...</p>
+          <p className="text-green-200 mt-2">Redirecting to home...</p>
         </div>
       )}
 
