@@ -412,10 +412,17 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 if __name__ == "__main__":
     # Run API mode
     import uvicorn
+    
+    # Get host and port from environment variables
+    host = os.getenv("HOST", "localhost")
+    port = int(os.getenv("PORT", "8000"))
+
+    print(f"Starting Flash Loan AI Agent API on {host}:{port}...")
+    
     uvicorn.run(
         "app:app",
-        host="0.0.0.0",
-        port=8000,
+        host=host,
+        port=port,
         reload=True,
         log_level="info"
     )
