@@ -25,7 +25,7 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.png" type="image/png" />
       </head>
       <body
-        className={`${instrumentSans.variable} font-sans antialiased bg-[#0D001D]`}
+        className={`${instrumentSans.variable} antialiased bg-[#0D001D]`}
       >
         <Providers>{children}</Providers>
       </body>

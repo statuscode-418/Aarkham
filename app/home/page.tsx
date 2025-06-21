@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Sparkles, Shield, Zap } from "lucide-react"
+import { Sparkles, Shield, Zap, Send, MessageCircle } from "lucide-react"
 export default function FurucomboPage() {
   const [started, setStarted] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -18,7 +18,12 @@ export default function FurucomboPage() {
 const [routerName, setRouterName] = useState("")
 const [tokenAmount, setTokenAmount] = useState("")
 const [blockCount, setBlockCount] = useState(0)
-  
+  const [isChatOpen, setIsChatOpen] = useState(false)
+  const [chatInput, setChatInput] = useState("")
+  const [messages, setMessages] = useState([
+    { text: "Hi! How can we help you?", from: "support" },
+  ])
+
   const [newToken, setNewToken] = useState<any | null>(null)
   const tokenOptions = ["ETH", "USDC", "AAVE", "CRV", "stETH", "1INCH", "COMP", "SUSHI", "YFI"]
 const routerOptions = ["Uniswap", "SushiSwap", "Lido", "Curve", "Compound", "Aave", "1inch", "Yearn"]
@@ -43,7 +48,11 @@ const handleAddToken = () => {
     setIsDialogOpen(true)
   }
 
- 
+  const handleSendMessage = () => {
+    if (!chatInput.trim()) return
+    setMessages((prev) => [...prev, { text: chatInput, from: "user" }])
+    setChatInput("")
+  }
 
   return (
     <div className="h-full bg-gradient-to-b from-[#0d0221] via-[#22055d] to-[#0D001D] text-white">
@@ -81,6 +90,7 @@ const handleAddToken = () => {
          <Button
             onClick={handleStart}
             className="text-xl px-7 py-3 rounded-full bg-transparent"
+            
           >
             Start
           </Button>
@@ -154,6 +164,53 @@ const handleAddToken = () => {
           />
         </>
       )}
+      {/* Chat Button */}
+      <div className="fixed bottom-6 right-6 z-50">
+        <Button
+          onClick={() => setIsChatOpen((prev) => !prev)}
+          className="flex items-center gap-2 text-white px-4 py-2 rounded-full"
+        >
+          <MessageCircle className="w-5 h-5" />
+          {isChatOpen ? "Close Chat" : "Ask Rohan"}
+        </Button>
+      </div>
+
+{/* Chat Window */}
+{isChatOpen && (
+  <div className="fixed bottom-20 right-6 w-80 h-96 bg-gradient-to-b from-[#0d0221] via-[#22055d] to-[#0D001D] border-2 border-purple-500 rounded-2xl shadow-2xl z-50 flex flex-col animate-fade-in">
+    <div className="p-4 font-bold text-white border-b border-purple-700 flex items-center gap-2 bg-gradient-to-b from-[#0d0221] via-[#22055d] to-[#0D001D] rounded-t-2xl">
+      <MessageCircle className="w-5 h-5 text-pink-300 animate-bounce" />
+      Support Chat
+    </div>
+    <div className="flex-1 p-4 overflow-y-auto text-sm text-white space-y-2 custom-scrollbar">
+      {messages.map((msg, idx) => (
+        <div
+          key={idx}
+          className={`p-2 rounded-lg w-fit max-w-xs shadow-md ${msg.from === "support" ? "bg-purple-800/80" : "bg-gradient-to-r from-pink-500 to-purple-600 ml-auto"}`}
+        >
+          {msg.text}
+        </div>
+      ))}
+    </div>
+    <div className="p-2 border-t border-purple-700 flex gap-2 bg-[#22055d]/60 rounded-b-2xl">
+      <Input
+        placeholder="Type a message..."
+        className="flex-1 bg-[#2a0852] text-white border-none focus:ring-2 focus:ring-pink-400/60"
+        value={chatInput}
+        onChange={e => setChatInput(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') handleSendMessage() }}
+      />
+      <button
+        className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white px-3 py-1 rounded-full flex items-center justify-center shadow-lg transition-all duration-200"
+        onClick={handleSendMessage}
+        aria-label="Send"
+      >
+        <Send className="w-5 h-5" />
+      </button>
+    </div>
+  </div>
+)}
+
     </div>
   )
 }
