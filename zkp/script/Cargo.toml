@@ -9,7 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 actix-web = "4.0.1"  # For the web server
-sp1-sdk = "4.0.0"    # For zk-prover functionality
+sp1-sdk = "=4.0.0"    # For zk-prover functionality (exact version)
 serde = { version = "1.0.200", features = ["derive"] }  # For serialization/deserialization
 serde_json = "1.0"   # For JSON handling
 clap = { version = "4.0", features = ["derive", "env"] }  # For command-line argument parsing
@@ -17,12 +17,12 @@ tracing = "0.1.40"   # For logging
 hex = "0.4.3"        # For hexadecimal encoding/decoding
 alloy-sol-types = { workspace = true }  # For Solidity type support
 aadhar-lib = { path = "../lib" }  # Your custom library
-sp1-verifier = { version = "4.0.0", default-features = false }  # For proof verification
+sp1-verifier = { version = "=4.0.0", default-features = false }  # For proof verification (exact version)
 flate2 = "1.0"       # For decompression (used in QR processing)
 num-bigint = "0.4"   # For handling large integers (used in QR processing)
 actix-rt = "2.0"     # For Actix runtime
-sp1-prover = "4.1.1"
+sp1-prover = "=4.0.0"  # Exact version to prevent conflicts
 actix-cors = "0.6"
 
 [build-dependencies]
-sp1-build = "4.0.0"  # For SP1 build-time dependencies
+sp1-build = "=4.0.0"  # For SP1 build-time dependencies (exact version)
