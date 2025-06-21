@@ -242,7 +242,7 @@ export const NavbarLogo = () => {
         width={30}
         height={30}
       />
-      <span className="font-medium text-white">Arkham</span>
+      <span className="font-medium text-white">Aarkham</span>
     </a>
   );
 };

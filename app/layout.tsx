@@ -10,7 +10,7 @@ const instrumentSans = Instrument_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Arkham - Flash Loan Platform",
+  title: "Aarkham - Flash Loan Platform",
   description: "Next generation DeFi flash loan platform with ZK-proof KYC verification",
 };
 
@@ -22,7 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${instrumentSans.variable} font-sans antialiased`}
+        className={`${instrumentSans.variable} font-sans antialiased bg-[#0D001D]`}
       >
         <Providers>{children}</Providers>
       </body>

@@ -32,7 +32,7 @@ export function Navigation() {
             <div className="w-10 h-10 bg-gradient-to-br from-purple-500 via-pink-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-purple-500/25 transition-all duration-300 group-hover:scale-105">
               <span className="text-white font-bold text-xl">A</span>
             </div>
-            <span className="text-white text-2xl font-bold tracking-tight">Arkham</span>
+            <span className="text-white text-2xl font-bold tracking-tight">Aarkham</span>
           </div>
 
           {/* Desktop Navigation Links */}

@@ -50,7 +50,7 @@ export default function Footer() {
                 <div className="w-8 h-8 bg-gradient-to-r from-cyan-400 to-emerald-400 rounded-lg flex items-center justify-center">
                   <span className="text-black font-bold text-lg">A</span>
                 </div>
-                <span className="text-2xl font-bold text-white">Arkham</span>
+                <span className="text-2xl font-bold text-white">Aarkham</span>
               </div>
               <p className="text-gray-400 text-sm leading-relaxed mb-6 max-w-sm">
                 Unlock private DeFi strategies with our zero-knowledge flash loan app—secure instant loans while keeping
