@@ -1,229 +1,58 @@
-// Helper functions for FlashLoanExecutor contract using viem and wagmi
+// Smart contract read and write functions for FlashLoanExecutor
+import { 
+  useReadContract, 
+  useWriteContract, 
+  useWaitForTransactionReceipt 
+} from 'wagmi'
 import { 
   Address, 
   Hash, 
   Hex, 
-  formatUnits, 
-  parseUnits, 
   encodeFunctionData,
-  decodeFunctionResult,
   parseEther,
-  formatEther
+  formatUnits,
+  parseUnits
 } from 'viem'
-import { 
-  useReadContract, 
-  useWriteContract, 
-  useWaitForTransactionReceipt,
-  usePublicClient,
-  useWalletClient,
-  useAccount
-} from 'wagmi'
+import { FLASH_LOAN_EXECUTOR_ABI, FLASH_LOAN_EXECUTOR_ADDRESS } from './abi'
 import { ActionType, StrategyType, ExecutionStatus } from '../types/interfaces'
 
-// Contract address (update with your deployed contract address)
-export const FLASH_LOAN_EXECUTOR_ADDRESS = '0x...' as Address // Replace with actual address
+// ============ TYPES ============
+export { ActionType, StrategyType, ExecutionStatus } from '../types/interfaces'
 
-// Contract ABI for FlashLoanExecutor
-export const FLASH_LOAN_EXECUTOR_ABI = [
-  // View functions
-  {
-    name: 'getStrategy',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'strategyId', type: 'uint256' }],
-    outputs: [
-      { name: 'id', type: 'uint256' },
-      { name: 'creator', type: 'address' },
-      { name: 'active', type: 'bool' },
-      { name: 'minProfitBPS', type: 'uint256' },
-      { name: 'executionCount', type: 'uint256' },
-      { name: 'totalProfit', type: 'uint256' }
-    ]
-  },
-  {
-    name: 'getUserProfit',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [
-      { name: 'user', type: 'address' },
-      { name: 'token', type: 'address' }
-    ],
-    outputs: [{ name: '', type: 'uint256' }]
-  },
-  {
-    name: 'getStrategyActionsCount',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'strategyId', type: 'uint256' }],
-    outputs: [{ name: '', type: 'uint256' }]
-  },
-  {
-    name: 'getSafetyParams',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [
-      {
-        name: '',
-        type: 'tuple',
-        components: [
-          { name: 'maxSlippageBPS', type: 'uint256' },
-          { name: 'deadlineBuffer', type: 'uint256' },
-          { name: 'minProfitBPS', type: 'uint256' },
-          { name: 'maxGasPrice', type: 'uint256' },
-          { name: 'maxExecutionTime', type: 'uint256' },
-          { name: 'emergencyStop', type: 'bool' }
-        ]
-      }
-    ]
-  },
-  {
-    name: 'authorizedExecutors',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: '', type: 'address' }],
-    outputs: [{ name: '', type: 'bool' }]
-  },
-  {
-    name: 'nextStrategyId',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ name: '', type: 'uint256' }]
-  },
-  {
-    name: 'emergencyStop',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ name: '', type: 'bool' }]
-  },
-  // Write functions
-  {
-    name: 'createStrategy',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'name', type: 'string' },
-      { name: 'actionTypes', type: 'uint8[]' },
-      { name: 'targets', type: 'address[]' },
-      { name: 'datas', type: 'bytes[]' },
-      { name: 'minProfitBPS_', type: 'uint256' }
-    ],
-    outputs: []
-  },
-  {
-    name: 'executeStrategy',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'strategyId', type: 'uint256' },
-      { name: 'assets', type: 'address[]' },
-      { name: 'amounts', type: 'uint256[]' }
-    ],
-    outputs: []
-  },
-  {
-    name: 'setDEXRouter',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'dexName', type: 'string' },
-      { name: 'router', type: 'address' }
-    ],
-    outputs: []
-  },
-  {
-    name: 'setAuthorizedExecutor',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'executor', type: 'address' },
-      { name: 'isAuthorized', type: 'bool' }
-    ],
-    outputs: []
-  },
-  {
-    name: 'toggleEmergencyStop',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [],
-    outputs: []
-  },
-  {
-    name: 'updateSafetyParams',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: '_maxSlippageBPS', type: 'uint256' },
-      { name: '_minProfitBPS', type: 'uint256' },
-      { name: '_maxGasPrice', type: 'uint256' }
-    ],
-    outputs: []
-  },
-  {
-    name: 'emergencyWithdraw',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'token', type: 'address' },
-      { name: 'to', type: 'address' }
-    ],
-    outputs: []
-  },
-  // Events
-  {
-    name: 'FlashLoanInitiated',
-    type: 'event',
-    inputs: [
-      { name: 'initiator', type: 'address', indexed: true },
-      { name: 'strategyId', type: 'uint256', indexed: true }
-    ]
-  },
-  {
-    name: 'StrategyExecuted',
-    type: 'event',
-    inputs: [
-      { name: 'strategyId', type: 'uint256', indexed: true },
-      { name: 'executor', type: 'address', indexed: true },
-      { name: 'profit', type: 'uint256' }
-    ]
-  },
-  {
-    name: 'StrategyCreated',
-    type: 'event',
-    inputs: [
-      { name: 'strategyId', type: 'uint256', indexed: true },
-      { name: 'creator', type: 'address', indexed: true }
-    ]
-  }
-] as const
+export enum DEXType {
+  UNISWAP_V2 = 0,
+  UNISWAP_V3 = 1,
+  SUSHISWAP = 2,
+  QUICKSWAP = 3,
+  BALANCER = 4,
+  CURVE = 5,
+  PANCAKESWAP = 6,
+  CUSTOM = 7
+}
 
-// Types for strategy and action data
 export interface StrategyData {
   id: bigint
+  strategyType: StrategyType
   creator: Address
   active: boolean
   minProfitBPS: bigint
+  maxGasPrice: bigint
+  deadline: bigint
+  name: string
+  description: string
   executionCount: bigint
   totalProfit: bigint
-}
-
-export interface SafetyParams {
-  maxSlippageBPS: bigint
-  deadlineBuffer: bigint
-  minProfitBPS: bigint
-  maxGasPrice: bigint
-  maxExecutionTime: bigint
-  emergencyStop: boolean
+  createdAt: bigint
 }
 
 export interface ActionData {
-  actionType: ActionType
   target: Address
   data: Hex
   value: bigint
+  actionType: ActionType
+  expectedGasUsage: bigint
   critical: boolean
+  description: string
 }
 
 export interface CreateStrategyParams {
@@ -240,7 +69,7 @@ export interface ExecuteStrategyParams {
   amounts: bigint[]
 }
 
-// ============ READ HOOKS ============
+// ============ READ FUNCTIONS ============
 
 /**
  * Get strategy details by ID
@@ -250,6 +79,51 @@ export function useGetStrategy(strategyId: bigint) {
     address: FLASH_LOAN_EXECUTOR_ADDRESS,
     abi: FLASH_LOAN_EXECUTOR_ABI,
     functionName: 'getStrategy',
+    args: [strategyId],
+    query: {
+      enabled: strategyId > 0n
+    }
+  })
+}
+
+/**
+ * Get full strategy details including actions
+ */
+export function useGetFullStrategy(strategyId: bigint) {
+  return useReadContract({
+    address: FLASH_LOAN_EXECUTOR_ADDRESS,
+    abi: FLASH_LOAN_EXECUTOR_ABI,
+    functionName: 'strategies',
+    args: [strategyId],
+    query: {
+      enabled: strategyId > 0n
+    }
+  })
+}
+
+/**
+ * Get strategy actions by strategy ID and action index
+ */
+export function useGetStrategyAction(strategyId: bigint, actionIndex: bigint) {
+  return useReadContract({
+    address: FLASH_LOAN_EXECUTOR_ADDRESS,
+    abi: FLASH_LOAN_EXECUTOR_ABI,
+    functionName: 'strategyActions',
+    args: [strategyId, actionIndex],
+    query: {
+      enabled: strategyId > 0n && actionIndex >= 0n
+    }
+  })
+}
+
+/**
+ * Get number of actions in a strategy
+ */
+export function useGetStrategyActionsCount(strategyId: bigint) {
+  return useReadContract({
+    address: FLASH_LOAN_EXECUTOR_ADDRESS,
+    abi: FLASH_LOAN_EXECUTOR_ABI,
+    functionName: 'getStrategyActionsCount',
     args: [strategyId],
     query: {
       enabled: strategyId > 0n
@@ -273,28 +147,17 @@ export function useGetUserProfit(userAddress: Address, tokenAddress: Address) {
 }
 
 /**
- * Get number of actions in a strategy
+ * Get user profits mapping
  */
-export function useGetStrategyActionsCount(strategyId: bigint) {
+export function useGetUserProfits(userAddress: Address, tokenAddress: Address) {
   return useReadContract({
     address: FLASH_LOAN_EXECUTOR_ADDRESS,
     abi: FLASH_LOAN_EXECUTOR_ABI,
-    functionName: 'getStrategyActionsCount',
-    args: [strategyId],
+    functionName: 'userProfits',
+    args: [userAddress, tokenAddress],
     query: {
-      enabled: strategyId > 0n
+      enabled: !!userAddress && !!tokenAddress
     }
-  })
-}
-
-/**
- * Get safety parameters
- */
-export function useGetSafetyParams() {
-  return useReadContract({
-    address: FLASH_LOAN_EXECUTOR_ADDRESS,
-    abi: FLASH_LOAN_EXECUTOR_ABI,
-    functionName: 'getSafetyParams'
   })
 }
 
@@ -309,6 +172,21 @@ export function useIsAuthorizedExecutor(executorAddress: Address) {
     args: [executorAddress],
     query: {
       enabled: !!executorAddress
+    }
+  })
+}
+
+/**
+ * Get DEX router address by name
+ */
+export function useGetDEXRouter(dexName: string) {
+  return useReadContract({
+    address: FLASH_LOAN_EXECUTOR_ADDRESS,
+    abi: FLASH_LOAN_EXECUTOR_ABI,
+    functionName: 'dexRouters',
+    args: [dexName],
+    query: {
+      enabled: !!dexName
     }
   })
 }
@@ -335,7 +213,105 @@ export function useIsEmergencyStop() {
   })
 }
 
-// ============ WRITE HOOKS ============
+/**
+ * Get max slippage BPS
+ */
+export function useGetMaxSlippageBPS() {
+  return useReadContract({
+    address: FLASH_LOAN_EXECUTOR_ADDRESS,
+    abi: FLASH_LOAN_EXECUTOR_ABI,
+    functionName: 'maxSlippageBPS'
+  })
+}
+
+/**
+ * Get min profit BPS
+ */
+export function useGetMinProfitBPS() {
+  return useReadContract({
+    address: FLASH_LOAN_EXECUTOR_ADDRESS,
+    abi: FLASH_LOAN_EXECUTOR_ABI,
+    functionName: 'minProfitBPS'
+  })
+}
+
+/**
+ * Get max gas price
+ */
+export function useGetMaxGasPrice() {
+  return useReadContract({
+    address: FLASH_LOAN_EXECUTOR_ADDRESS,
+    abi: FLASH_LOAN_EXECUTOR_ABI,
+    functionName: 'maxGasPrice'
+  })
+}
+
+/**
+ * Get Aave pool address
+ */
+export function useGetAavePool() {
+  return useReadContract({
+    address: FLASH_LOAN_EXECUTOR_ADDRESS,
+    abi: FLASH_LOAN_EXECUTOR_ABI,
+    functionName: 'aavePool'
+  })
+}
+
+/**
+ * Get address provider
+ */
+export function useGetAddressProvider() {
+  return useReadContract({
+    address: FLASH_LOAN_EXECUTOR_ADDRESS,
+    abi: FLASH_LOAN_EXECUTOR_ABI,
+    functionName: 'addressProvider'
+  })
+}
+
+/**
+ * Get WETH address
+ */
+export function useGetWETH() {
+  return useReadContract({
+    address: FLASH_LOAN_EXECUTOR_ADDRESS,
+    abi: FLASH_LOAN_EXECUTOR_ABI,
+    functionName: 'weth'
+  })
+}
+
+/**
+ * Get contract owner
+ */
+export function useGetOwner() {
+  return useReadContract({
+    address: FLASH_LOAN_EXECUTOR_ADDRESS,
+    abi: FLASH_LOAN_EXECUTOR_ABI,
+    functionName: 'owner'
+  })
+}
+
+/**
+ * Get all safety parameters combined
+ */
+export function useGetSafetyParams() {
+  const maxSlippageBPS = useGetMaxSlippageBPS()
+  const minProfitBPS = useGetMinProfitBPS()
+  const maxGasPrice = useGetMaxGasPrice()
+  const emergencyStop = useIsEmergencyStop()
+
+  return {
+    data: {
+      maxSlippageBPS: maxSlippageBPS.data,
+      minProfitBPS: minProfitBPS.data,
+      maxGasPrice: maxGasPrice.data,
+      emergencyStop: emergencyStop.data
+    },
+    isLoading: maxSlippageBPS.isLoading || minProfitBPS.isLoading || maxGasPrice.isLoading || emergencyStop.isLoading,
+    error: maxSlippageBPS.error || minProfitBPS.error || maxGasPrice.error || emergencyStop.error
+  }
+}
+
+// ============ WRITE FUNCTIONS ============
 
 /**
  * Create a new strategy
@@ -390,7 +366,7 @@ export function useExecuteStrategy() {
 }
 
 /**
- * Set DEX router address
+ * Set DEX router address (Owner only)
  */
 export function useSetDEXRouter() {
   const { writeContract, data: hash, error, isPending } = useWriteContract()
@@ -413,7 +389,7 @@ export function useSetDEXRouter() {
 }
 
 /**
- * Set authorized executor
+ * Set authorized executor (Owner only)
  */
 export function useSetAuthorizedExecutor() {
   const { writeContract, data: hash, error, isPending } = useWriteContract()
@@ -436,7 +412,7 @@ export function useSetAuthorizedExecutor() {
 }
 
 /**
- * Toggle emergency stop
+ * Toggle emergency stop (Owner only)
  */
 export function useToggleEmergencyStop() {
   const { writeContract, data: hash, error, isPending } = useWriteContract()
@@ -458,7 +434,7 @@ export function useToggleEmergencyStop() {
 }
 
 /**
- * Update safety parameters
+ * Update safety parameters (Owner only)
  */
 export function useUpdateSafetyParams() {
   const { writeContract, data: hash, error, isPending } = useWriteContract()
@@ -485,17 +461,17 @@ export function useUpdateSafetyParams() {
 }
 
 /**
- * Emergency withdraw tokens
+ * Emergency withdraw tokens (Owner only)
  */
 export function useEmergencyWithdraw() {
   const { writeContract, data: hash, error, isPending } = useWriteContract()
 
-  const emergencyWithdraw = async (tokenAddress: Address, toAddress: Address) => {
+  const emergencyWithdraw = async (tokenAddress: Address, to: Address) => {
     return writeContract({
       address: FLASH_LOAN_EXECUTOR_ADDRESS,
       abi: FLASH_LOAN_EXECUTOR_ABI,
       functionName: 'emergencyWithdraw',
-      args: [tokenAddress, toAddress]
+      args: [tokenAddress, to]
     })
   }
 
@@ -507,17 +483,62 @@ export function useEmergencyWithdraw() {
   }
 }
 
+/**
+ * Transfer ownership (Owner only)
+ */
+export function useTransferOwnership() {
+  const { writeContract, data: hash, error, isPending } = useWriteContract()
+
+  const transferOwnership = async (newOwner: Address) => {
+    return writeContract({
+      address: FLASH_LOAN_EXECUTOR_ADDRESS,
+      abi: FLASH_LOAN_EXECUTOR_ABI,
+      functionName: 'transferOwnership',
+      args: [newOwner]
+    })
+  }
+
+  return {
+    transferOwnership,
+    hash,
+    error,
+    isPending
+  }
+}
+
+/**
+ * Renounce ownership (Owner only)
+ */
+export function useRenounceOwnership() {
+  const { writeContract, data: hash, error, isPending } = useWriteContract()
+
+  const renounceOwnership = async () => {
+    return writeContract({
+      address: FLASH_LOAN_EXECUTOR_ADDRESS,
+      abi: FLASH_LOAN_EXECUTOR_ABI,
+      functionName: 'renounceOwnership'
+    })
+  }
+
+  return {
+    renounceOwnership,
+    hash,
+    error,
+    isPending
+  }
+}
+
 // ============ UTILITY FUNCTIONS ============
 
 /**
- * Format token amount with decimals
+ * Format token amount with proper decimals
  */
 export function formatTokenAmount(amount: bigint, decimals: number = 18): string {
   return formatUnits(amount, decimals)
 }
 
 /**
- * Parse token amount to wei
+ * Parse token amount to bigint
  */
 export function parseTokenAmount(amount: string, decimals: number = 18): bigint {
   return parseUnits(amount, decimals)
@@ -527,25 +548,25 @@ export function parseTokenAmount(amount: string, decimals: number = 18): bigint 
  * Format ETH amount
  */
 export function formatEthAmount(amount: bigint): string {
-  return formatEther(amount)
+  return formatUnits(amount, 18)
 }
 
 /**
- * Parse ETH amount
+ * Parse ETH amount to wei
  */
 export function parseEthAmount(amount: string): bigint {
   return parseEther(amount)
 }
 
 /**
- * Calculate percentage from BPS (Basis Points)
+ * Convert basis points to percentage
  */
 export function bpsToPercentage(bps: bigint): number {
   return Number(bps) / 100
 }
 
 /**
- * Convert percentage to BPS
+ * Convert percentage to basis points
  */
 export function percentageToBps(percentage: number): bigint {
   return BigInt(Math.round(percentage * 100))
@@ -554,22 +575,15 @@ export function percentageToBps(percentage: number): bigint {
 /**
  * Check if strategy is profitable
  */
-export function isStrategyProfitable(
-  strategyData: StrategyData,
-  currentProfit: bigint
-): boolean {
-  const minProfitThreshold = strategyData.minProfitBPS
-  return currentProfit >= minProfitThreshold
+export function isStrategyProfitable(strategyData: StrategyData, currentProfit: bigint): boolean {
+  return currentProfit >= strategyData.minProfitBPS
 }
 
 /**
  * Calculate estimated gas cost
  */
-export function calculateEstimatedGasCost(
-  gasPrice: bigint,
-  gasLimit: bigint
-): bigint {
-  return gasPrice * gasLimit
+export function calculateEstimatedGasCost(gasLimit: bigint, gasPrice: bigint): bigint {
+  return gasLimit * gasPrice
 }
 
 /**
@@ -582,7 +596,6 @@ export function generateSwapActionData(
   amountOutMin: bigint,
   deadline: bigint
 ): Hex {
-  // This is a simplified example for Uniswap V2 style swap
   return encodeFunctionData({
     abi: [
       {
@@ -645,14 +658,8 @@ export function validateStrategyParams(params: CreateStrategyParams): {
  * Get strategy status text
  */
 export function getStrategyStatusText(strategyData: StrategyData): string {
-  if (!strategyData.active) {
-    return 'Inactive'
-  }
-  
-  if (strategyData.executionCount === 0n) {
-    return 'Ready'
-  }
-  
+  if (!strategyData.active) return 'Inactive'
+  if (Date.now() / 1000 > Number(strategyData.deadline)) return 'Expired'
   return 'Active'
 }
 
@@ -660,7 +667,7 @@ export function getStrategyStatusText(strategyData: StrategyData): string {
  * Custom hook to wait for transaction and handle success/error
  */
 export function useTransactionStatus(hash: Hash | undefined) {
-  const result = useWaitForTransactionReceipt({
+  const { data, isSuccess, isError, error } = useWaitForTransactionReceipt({
     hash,
     query: {
       enabled: !!hash
@@ -668,37 +675,49 @@ export function useTransactionStatus(hash: Hash | undefined) {
   })
 
   return {
-    ...result,
-    isSuccess: result.status === 'success',
-    isError: result.status === 'error'
+    receipt: data,
+    isSuccess,
+    isError,
+    error
   }
 }
 
-// ============ COMMON TOKEN ADDRESSES ============
+// ============ CONSTANTS ============
 export const COMMON_TOKENS = {
-  // Polygon Amoy testnet tokens
-  WETH: '0x...' as Address, // Replace with actual WETH address
-  USDC: '0x...' as Address, // Replace with actual USDC address
-  USDT: '0x...' as Address, // Replace with actual USDT address
-  DAI: '0x...' as Address,  // Replace with actual DAI address
+  // Replace with actual token addresses for your network
+  WETH: '0x...' as Address,
+  USDC: '0x...' as Address,
+  USDT: '0x...' as Address,
+  DAI: '0x...' as Address,
 } as const
 
-// ============ DEX ROUTER ADDRESSES ============
 export const DEX_ROUTERS = {
-  UNISWAP_V2: '0x...' as Address, // Replace with actual Uniswap V2 router
-  UNISWAP_V3: '0x...' as Address, // Replace with actual Uniswap V3 router
-  SUSHISWAP: '0x...' as Address,  // Replace with actual SushiSwap router
+  UNISWAP_V2: '0x...' as Address,
+  UNISWAP_V3: '0x...' as Address,
+  SUSHISWAP: '0x...' as Address,
 } as const
 
+// ============ DEFAULT EXPORT ============
 export default {
   // Read hooks
   useGetStrategy,
-  useGetUserProfit,
+  useGetFullStrategy,
+  useGetStrategyAction,
   useGetStrategyActionsCount,
-  useGetSafetyParams,
+  useGetUserProfit,
+  useGetUserProfits,
   useIsAuthorizedExecutor,
+  useGetDEXRouter,
   useGetNextStrategyId,
   useIsEmergencyStop,
+  useGetMaxSlippageBPS,
+  useGetMinProfitBPS,
+  useGetMaxGasPrice,
+  useGetAavePool,
+  useGetAddressProvider,
+  useGetWETH,
+  useGetOwner,
+  useGetSafetyParams,
   
   // Write hooks
   useCreateStrategy,
@@ -708,6 +727,8 @@ export default {
   useToggleEmergencyStop,
   useUpdateSafetyParams,
   useEmergencyWithdraw,
+  useTransferOwnership,
+  useRenounceOwnership,
   
   // Utility functions
   formatTokenAmount,
@@ -727,5 +748,10 @@ export default {
   FLASH_LOAN_EXECUTOR_ADDRESS,
   FLASH_LOAN_EXECUTOR_ABI,
   COMMON_TOKENS,
-  DEX_ROUTERS
+  DEX_ROUTERS,
+  
+  // Enums
+  ActionType,
+  StrategyType,
+  DEXType
 }

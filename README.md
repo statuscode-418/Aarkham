@@ -1,6 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Arkham Flash Loan Platform
 
-## Getting Started
+A comprehensive DeFi platform that enables private flash loan strategies using zero-knowledge proofs. Built with Next.js, TypeScript, Viem, Wagmi, and smart contracts on Polygon.
+
+## 🚀 Features
+
+- **Flash Loan Strategies**: Create and execute complex DeFi strategies with flash loans
+- **Private Execution**: Zero-knowledge proof integration for confidential transactions
+- **Multi-DEX Support**: Integration with Uniswap, SushiSwap, and other major DEXes
+- **Safety Parameters**: Built-in slippage protection and profit guarantees
+- **Real-time Monitoring**: Track strategy performance and gas optimization
+- **Admin Controls**: Emergency stops and safety parameter updates
+
+## 📦 Installation
+
+1. **Clone the repository**
+```bash
+git clone https://github.com/your-username/aarkham.git
+cd aarkham
+```
+
+2. **Install dependencies**
+```bash
+npm install
+# or
+pnpm install
+```
+
+3. **Environment Setup**
+```bash
+cp .env.example .env.local
+```
+
+4. **Configure environment variables**
+Edit `.env.local` with your values:
+```bash
+# Blockchain RPC
+RPC_URL=https://polygon-mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID
+
+# Contract Addresses (replace with deployed addresses)
+NEXT_PUBLIC_FLASH_LOAN_EXECUTOR_ADDRESS=0x...
+NEXT_PUBLIC_AAVE_POOL_ADDRESS=0x794a61358D6845594F94dc1DB02A252b5b4814aD
+
+# Wallet Connect
+NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
+```
+
+## 🔧 Development
 
 First, run the development server:
 
