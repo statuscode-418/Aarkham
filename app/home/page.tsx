@@ -1,5 +1,7 @@
-import Component from "../../components/dragable-cubes"
+import Component from "../../components/dragable-cube-component"
 
-export default function Page() {
-  return <Component />
+export default function page() {
+  return (
+    <Component />
+  )
 }
