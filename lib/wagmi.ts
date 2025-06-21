@@ -8,7 +8,7 @@ import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'YOUR_PROJECT_ID_HERE'
 
 export const config = getDefaultConfig({
-  appName: 'Arkham Flash Loan Platform',
+  appName: 'Aarkham Flash Loan Platform',
   projectId: projectId,
   chains: [polygon, polygonAmoy, mainnet],
   ssr: true,
