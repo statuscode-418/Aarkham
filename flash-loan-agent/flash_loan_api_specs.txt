@@ -1,0 +1,118 @@
+This is a flash loan api built on blockchain,
+using these api an AI agent will be able to help pick best loan and execute those loans on their behaf
+
+Here are the details for the POST /api/strategies/create endpoint:
+
+Description: Creates a new flash loan strategy.
+
+Parameters:
+
+name (string, required): The name of the strategy.
+actionTypes (Array of numbers, required): An array of action type enums.
+targets (Array of strings, required): An array of target contract addresses.
+datas (Array of strings, required): An array of encoded function call data.
+minProfitBPS (number, optional): The minimum profit in basis points. Defaults to 100 (1%).
+walletAddress (string, optional): The user's wallet address.
+privateKey (string, optional): The user's private key for signing. (Use with caution)
+
+the /api/strategies/execute endpoint has a POST method for executing a strategy and a GET method that provides documentation.
+
+Here are the details for the POST /api/strategies/execute endpoint:
+
+Description: Executes a flash loan strategy.
+
+Parameters:
+
+strategyId (number, required): The ID of the strategy to execute.
+assets (Array of strings, required): An array of asset addresses for the flash loan.
+amounts (Array of strings, required): An array of amounts to borrow (in wei).
+gasPrice (string, optional): The gas price in wei.
+gasLimit (string, optional): The gas limit for the transaction.
+walletAddress (string, optional): The user's wallet address.
+privateKey (string, optional): The user's private key for signing.
+
+the /api/strategies/query endpoint has a GET method for retrieving instructions on how to query strategy data and a POST method that provides documentation. This endpoint doesn't return the data itself but rather guides the frontend on how to fetch it.
+
+Here are the details for the GET /api/strategies/query endpoint:
+
+Description: Get instructions for querying strategy data.
+
+Parameters:
+
+strategyId (number, optional): The ID of the strategy to query.
+walletAddress (string, optional): The wallet address to query profits for.
+
+the /api/strategies/templates endpoint has a POST method for generating strategy templates and a GET method that provides documentation.
+
+Here are the details for the POST /api/strategies/templates endpoint:
+
+Description: Generate strategy templates using predefined patterns.
+
+Parameters:
+
+strategyType (string, required): The type of strategy template to generate. Supported types are arbitrage, yield-farming, liquidation, and refinancing.
+parameters (object, required): An object containing the parameters for the specified strategy type. The required parameters within this object vary depending on the strategyType.
+
+the /api/admin/actions endpoint has a POST method for executing administrative actions and a GET method that provides documentation.
+
+Here are the details for the POST /api/admin/actions endpoint:
+
+Description: Execute administrative actions on the FlashLoanExecutor contract.
+
+Parameters:
+
+action (string, required): The name of the admin action to perform.
+parameters (object, required): An object containing the parameters for the specified action.
+Supported Actions and their Parameters:
+
+set-dex-router:
+dexName (string, required)
+routerAddress (string, required)
+set-authorized-executor:
+executorAddress (string, required)
+isAuthorized (boolean, required)
+toggle-emergency-stop:
+No parameters required.
+update-safety-params:
+maxSlippageBPS (number, required)
+minProfitBPS (number, required)
+maxGasPrice (string, required)
+emergency-withdraw:
+tokenAddress (string, required)
+toAddress (string, required)
+
+the /api/analytics/calculate endpoint has a POST method for performing various DeFi calculations and a GET method that provides documentation.
+
+Here are the details for the POST /api/analytics/calculate endpoint:
+
+Description: Perform various DeFi calculations and analytics.
+
+Parameters:
+
+calculationType (string, required): The type of calculation to perform.
+parameters (object, required): An object containing the parameters for the specified calculation.
+Supported Calculation Types and their Parameters:
+
+uniswap-output:
+amountIn (string, required)
+reserveIn (string, required)
+reserveOut (string, required)
+feeBPS (number, optional)
+price-impact:
+amountIn (string, required)
+amountOut (string, required)
+reserveIn (string, required)
+reserveOut (string, required)
+min-amount-out:
+expectedAmount (string, required)
+slippageBPS (number, optional)
+gas-estimate:
+actionCount (number, required)
+max-gas-price:
+expectedProfitWei (string, required)
+estimatedGasUnits (string, required)
+profitMarginBPS (number, optional)
+strategy-validation:
+strategyData (object, required)
+currentGasPrice (string, required)
+safetyParams (object, required)

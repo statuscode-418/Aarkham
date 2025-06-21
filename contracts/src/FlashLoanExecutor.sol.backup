@@ -1,0 +1,302 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
+
+import "./interfaces/Interfaces.sol";
+import "./storage/DataStructures.sol";
+import "./libraries/library.sol";
+import "./FlashLoanExecutor/FlashLoanExecutorStorage.sol";
+import "./FlashLoanExecutor/Admin.sol";
+import "./FlashLoanExecutor/Execution.sol";
+import "./FlashLoanExecutor/Profit.sol";
+import "./FlashLoanExecutor/StrategyManager.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+/**
+ * @title FlashLoanExecutor
+ * @dev Complete Flash Loan Executor with multi-DEX support and strategy system
+ * @notice This contract enables complex DeFi strategies using Aave V3 flash loans
+ * @dev Refactored into modular components for better maintainability
+ */
+contract FlashLoanExecutor is 
+    IFlashLoanReceiver, 
+    Admin, 
+    Execution, 
+    Profit, 
+    StrategyManager, 
+    ReentrancyGuard {
+    using SafeMath for uint256;
+    using SafeERC20 for IERC20Extended;
+    using DEXLibrary for *;
+
+    // ============ CONSTANTS ============
+    uint256 public constant MIN_PROFIT_BPS = 50; // 0.5%
+    uint256 public constant DEADLINE_BUFFER = 300; // 5 minutes
+
+    // ============ EVENTS ============
+    event FlashLoanInitiated(
+        address indexed initiator,
+        uint256 indexed strategyId,
+        address[] assets,
+        uint256[] amounts
+    );
+    event StrategyExecuted(
+        uint256 indexed strategyId,
+        address indexed executor,
+        uint256 profitGenerated,
+        uint256 gasUsed,
+        bool success
+    );
+    event ArbitrageOpportunityFound(
+        address indexed tokenA,
+        address indexed tokenB,
+        uint256 expectedProfit,
+        DataStructures.DEXType buyDex,
+        DataStructures.DEXType sellDex
+    );
+
+    // ============ CONSTRUCTOR ============
+    constructor(address _addressProvider, address _weth) 
+        FlashLoanExecutorStorage(_addressProvider, _weth, msg.sender) {
+        require(_addressProvider != address(0), "Invalid address provider");
+        require(_weth != address(0), "Invalid WETH address");
+
+        safetyParams = DataStructures.SafetyParams({
+            maxSlippageBPS: 300,
+            deadlineBuffer: DEADLINE_BUFFER,
+            minProfitBPS: MIN_PROFIT_BPS,
+            maxGasPrice: 100 gwei,
+            maxExecutionTime: 600,
+            emergencyStop: false
+        });
+
+        // Initialize average gas usage estimates
+        avgGasUsage[DataStructures.ActionType.SWAP] = 150000;
+        avgGasUsage[DataStructures.ActionType.LEND] = 200000;
+        avgGasUsage[DataStructures.ActionType.BORROW] = 250000;
+        avgGasUsage[DataStructures.ActionType.STAKE] = 180000;
+        avgGasUsage[DataStructures.ActionType.HARVEST] = 120000;
+        avgGasUsage[DataStructures.ActionType.WRAP] = 50000;
+        avgGasUsage[DataStructures.ActionType.UNWRAP] = 50000;
+    }
+
+    // ============ FUNCTION OVERRIDES ============
+    function getStrategyActions(
+        uint256 strategyId
+    ) external view override(Execution, StrategyManager) returns (DataStructures.Action[] memory) {
+        return strategyActions[strategyId];
+    }
+
+    // ============ AAVE FLASH LOAN CALLBACK ============
+    struct StrategyParams {
+        uint256 strategyId;
+        address executor;
+        bytes userData;
+    }
+
+    function executeOperation(
+        address[] calldata assets,
+        uint256[] calldata amounts,
+        uint256[] calldata premiums,
+        address initiator,
+        bytes calldata params
+    ) external override returns (bool) {
+        require(msg.sender == address(aavePool), "Caller is not Aave V3 Pool");
+        require(initiator == address(this), "Initiator is not this contract");
+
+        StrategyParams memory sp = _decodeParams(params);
+        uint256 gasUsed = _executeStrategyAndTrack(sp, assets, amounts, premiums);
+        
+        return true;
+    }
+
+    function _decodeParams(bytes calldata params) internal pure returns (StrategyParams memory) {
+        (uint256 strategyId, address executor, bytes memory userData) = abi.decode(
+            params, 
+            (uint256, address, bytes)
+        );
+        return StrategyParams(strategyId, executor, userData);
+    }
+
+    function _executeStrategyAndTrack(
+        StrategyParams memory sp,
+        address[] calldata assets,
+        uint256[] calldata amounts,
+        uint256[] calldata premiums
+    ) internal returns (uint256 gasUsed) {
+        uint256 gasStart = gasleft();
+        
+        _recordBalancesBefore(assets);
+        bool success = _executeStrategyActions(sp.strategyId, assets, amounts, sp.userData);
+        _recordBalancesAfter(assets);
+        
+        uint256 profit = _calculateProfit(assets, amounts, premiums);
+        _repayFlashLoan(assets, amounts, premiums);
+        _validateProfitInternal(profit, sp, assets, amounts);
+        
+        require(success, "Strategy execution failed");
+        gasUsed = gasStart - gasleft();
+
+        // Record execution using StrategyManager
+        recordExecution(sp.strategyId, sp.executor, success, gasUsed, profit);
+        
+        // Update user profits
+        userProfits[sp.executor][assets[0]] = userProfits[sp.executor][assets[0]].add(profit);
+
+        emit StrategyExecuted(sp.strategyId, sp.executor, profit, gasUsed, success);
+    }
+
+    function _validateProfitInternal(
+        uint256 profit, 
+        StrategyParams memory sp, 
+        address[] calldata assets, 
+        uint256[] calldata amounts
+    ) internal view {
+        if (strategies[sp.strategyId].minProfitBPS > 0) {
+            uint256 minProfit = _calculateMinProfit(assets, amounts);
+            require(profit >= minProfit, "Insufficient profit generated");
+        }
+    }
+
+    // ============ EXTERNAL: FLASH LOAN INITIATION ============
+    function executeStrategy(
+        uint256 strategyId,
+        address[] calldata assets,
+        uint256[] calldata amounts,
+        bytes calldata userData
+    )
+        external
+        nonReentrant
+        notInEmergency
+        validStrategy(strategyId)
+        onlyAuthorized
+    {
+        require(assets.length == amounts.length, "Array length mismatch");
+        require(assets.length > 0, "No assets specified");
+        require(tx.gasprice <= safetyParams.maxGasPrice, "Gas price too high");
+
+        // Validate strategy permissions
+        require(
+            strategies[strategyId].creator == msg.sender ||
+                authorizedExecutors[msg.sender] ||
+                msg.sender == owner(),
+            "Not authorized to execute this strategy"
+        );
+
+        // Encode parameters for flash loan callback
+        bytes memory params = abi.encode(strategyId, msg.sender, userData);
+
+        emit FlashLoanInitiated(msg.sender, strategyId, assets, amounts);
+
+        // Execute flash loan
+        aavePool.flashLoan(
+            address(this),
+            assets,
+            amounts,
+            new uint256[](assets.length), // modes: 0 = no open debt
+            address(this),
+            params,
+            0 // referralCode
+        );
+    }
+
+    // ============ ARBITRAGE FUNCTIONS ============
+    function findArbitrageOpportunity(
+        address tokenA,
+        address tokenB,
+        uint256 amountIn,
+        DataStructures.DEXType[] calldata dexTypes
+    )
+        external
+        view
+        returns (DataStructures.ArbitrageOpportunity memory opportunity)
+    {
+        return DEXLibrary.findArbitrageOpportunity(
+            tokenA,
+            tokenB,
+            amountIn,
+            dexTypes,
+            dexRouters
+        );
+    }
+
+    function executeArbitrage(
+        address tokenA,
+        address tokenB,
+        uint256 amountIn,
+        DataStructures.DEXType buyDex,
+        DataStructures.DEXType sellDex,
+        uint256 minProfitBPS
+    ) external nonReentrant notInEmergency onlyAuthorized {
+        // Find arbitrage opportunity
+        DataStructures.DEXType[] memory dexTypes = new DataStructures.DEXType[](2);
+        dexTypes[0] = buyDex;
+        dexTypes[1] = sellDex;
+        
+        DataStructures.ArbitrageOpportunity memory opportunity = DEXLibrary.findArbitrageOpportunity(
+            tokenA,
+            tokenB,
+            amountIn,
+            dexTypes,
+            dexRouters
+        );
+
+        require(opportunity.expectedProfit > 0, "No arbitrage opportunity");
+        // Calculate profit BPS based on expected profit vs amount in
+        uint256 profitBPS = (opportunity.expectedProfit * 10000) / opportunity.amountIn;
+        require(profitBPS >= minProfitBPS, "Profit below minimum");
+
+        emit ArbitrageOpportunityFound(
+            tokenA,
+            tokenB,
+            opportunity.expectedProfit,
+            buyDex,
+            sellDex
+        );
+
+        // Create flash loan parameters
+        address[] memory assets = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+        assets[0] = tokenA;
+        amounts[0] = amountIn;
+
+        // Create arbitrage strategy data
+        bytes memory arbitrageData = abi.encode(opportunity);
+
+        // Execute flash loan for arbitrage
+        aavePool.flashLoan(
+            address(this),
+            assets,
+            amounts,
+            new uint256[](assets.length),
+            address(this),
+            abi.encode(0, msg.sender, arbitrageData), // strategyId = 0 for arbitrage
+            0
+        );
+    }
+
+    // ============ EMERGENCY FUNCTIONS ============
+    function emergencyWithdraw(address token, address to) external onlyOwner {
+        require(emergencyStop, "Emergency stop not active");
+        require(to != address(0), "Invalid recipient");
+
+        if (token == address(0)) {
+            // Withdraw ETH
+            payable(to).transfer(address(this).balance);
+        } else {
+            // Withdraw ERC20
+            uint256 balance = IERC20Extended(token).balanceOf(address(this));
+            if (balance > 0) {
+                IERC20Extended(token).safeTransfer(to, balance);
+            }
+        }
+    }
+
+    // ============ FALLBACK FUNCTIONS ============
+    receive() external payable {
+        // Accept ETH payments
+    }
+
+    fallback() external payable {
+        // Accept ETH payments
+    }
+}
