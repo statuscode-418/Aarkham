@@ -1,0 +1,815 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
+
+import "forge-std/Test.sol";
+import "forge-std/console.sol";
+import "../src/FlashLoanExecutor.sol"; // Now uses refactored modular architecture
+import "../src/interfaces/Interfaces.sol";
+import "../src/storage/DataStructures.sol";
+
+/**
+ * @notice This test file continues to work with the refactored FlashLoanExecutor
+ * @dev The external interface remains the same, but internal implementation is now modular
+ */
+
+// Mock contracts for testing
+contract MockAaveV3Pool is IAaveV3Pool {
+    mapping(address => uint256) public balances;
+    bool public shouldFailFlashLoan = false;
+    
+    function flashLoan(
+        address receiverAddress,
+        address[] calldata assets,
+        uint256[] calldata amounts,
+        uint256[] calldata modes,
+        address onBehalfOf,
+        bytes calldata params,
+        uint16 referralCode
+    ) external override {
+        require(!shouldFailFlashLoan, "Flash loan failed");
+        
+        // Transfer tokens to receiver
+        for (uint i = 0; i < assets.length; i++) {
+            MockERC20(assets[i]).mint(receiverAddress, amounts[i]);
+        }
+        
+        // Calculate premiums (0.05% for Aave)
+        uint256[] memory premiums = new uint256[](amounts.length);
+        for (uint i = 0; i < amounts.length; i++) {
+            premiums[i] = (amounts[i] * 5) / 10000; // 0.05%
+        }
+        
+        // Call the receiver
+        require(
+            IFlashLoanReceiver(receiverAddress).executeOperation(
+                assets,
+                amounts,
+                premiums,
+                onBehalfOf,
+                params
+            ),
+            "Flash loan execution failed"
+        );
+        
+        // Check repayment
+        for (uint i = 0; i < assets.length; i++) {
+            uint256 totalOwed = amounts[i] + premiums[i];
+            require(
+                MockERC20(assets[i]).balanceOf(receiverAddress) >= totalOwed,
+                "Insufficient balance for repayment"
+            );
+            MockERC20(assets[i]).transferFrom(receiverAddress, address(this), totalOwed);
+        }
+    }
+    
+    function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external override {
+        MockERC20(asset).transferFrom(msg.sender, address(this), amount);
+        balances[asset] += amount;
+    }
+    
+    function withdraw(address asset, uint256 amount, address to) external override returns (uint256) {
+        require(balances[asset] >= amount, "Insufficient balance");
+        balances[asset] -= amount;
+        MockERC20(asset).transfer(to, amount);
+        return amount;
+    }
+    
+    function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf) external override {
+        MockERC20(asset).mint(onBehalfOf, amount);
+    }
+    
+    function setFailFlashLoan(bool _fail) external {
+        shouldFailFlashLoan = _fail;
+    }
+}
+
+contract MockPoolAddressesProvider is IPoolAddressesProvider {
+    address public pool;
+    address public priceOracle;
+    
+    constructor(address _pool, address _priceOracle) {
+        pool = _pool;
+        priceOracle = _priceOracle;
+    }
+    
+    function getPool() external view override returns (address) {
+        return pool;
+    }
+    
+    function getPriceOracle() external view override returns (address) {
+        return priceOracle;
+    }
+}
+
+contract MockAaveOracle is IAaveOracle {
+    mapping(address => uint256) public prices;
+    
+    function getAssetPrice(address asset) external view override returns (uint256) {
+        uint256 price = prices[asset];
+        return price == 0 ? 1e18 : price; // Default to $1 if not set
+    }
+    
+    function getAssetsPrices(address[] calldata assets) external view override returns (uint256[] memory) {
+        uint256[] memory assetPrices = new uint256[](assets.length);
+        for (uint i = 0; i < assets.length; i++) {
+            assetPrices[i] = this.getAssetPrice(assets[i]);
+        }
+        return assetPrices;
+    }
+    
+    function setAssetPrice(address asset, uint256 price) external {
+        prices[asset] = price;
+    }
+}
+
+contract MockERC20 is IERC20Extended {
+    string public name;
+    string public symbol;
+    uint8 public decimals;
+    uint256 public totalSupply;
+    
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+    
+    constructor(string memory _name, string memory _symbol, uint8 _decimals) {
+        name = _name;
+        symbol = _symbol;
+        decimals = _decimals;
+    }
+    
+    function transfer(address to, uint256 amount) external override returns (bool) {
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        emit Transfer(msg.sender, to, amount);
+        return true;
+    }
+    
+    function transferFrom(address from, address to, uint256 amount) external override returns (bool) {
+        allowance[from][msg.sender] -= amount;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        emit Transfer(from, to, amount);
+        return true;
+    }
+    
+    function approve(address spender, uint256 amount) external override returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        emit Approval(msg.sender, spender, amount);
+        return true;
+    }
+    
+    function mint(address to, uint256 amount) external {
+        balanceOf[to] += amount;
+        totalSupply += amount;
+        emit Transfer(address(0), to, amount);
+    }
+    
+    function burn(address from, uint256 amount) external {
+        balanceOf[from] -= amount;
+        totalSupply -= amount;
+        emit Transfer(from, address(0), amount);
+    }
+}
+
+contract MockWETH is MockERC20, IWETH {
+    constructor() MockERC20("Wrapped Ether", "WETH", 18) {}
+    
+    function deposit() public payable override {
+        balanceOf[msg.sender] += msg.value;
+        totalSupply += msg.value;
+        emit Transfer(address(0), msg.sender, msg.value);
+    }
+    
+    function withdraw(uint256 amount) external override {
+        require(balanceOf[msg.sender] >= amount, "Insufficient balance");
+        balanceOf[msg.sender] -= amount;
+        totalSupply -= amount;
+        payable(msg.sender).transfer(amount);
+        emit Transfer(msg.sender, address(0), amount);
+    }
+    
+    receive() external payable {
+        deposit();
+    }
+}
+
+contract MockUniswapV2Router is IUniswapV2Router {
+    address private _factory;
+    address private _weth;
+
+    constructor(address factory_, address weth_) {
+        _factory = factory_;
+        _weth = weth_;
+    }
+
+    function factory() external pure override returns (address) {
+        return address(0); // Replace with _factory if needed
+    }
+
+    function WETH() external pure override returns (address) {
+        return address(0); // Replace with _weth if needed
+    }
+    
+    function swapExactTokensForTokens(
+        uint amountIn,
+        uint amountOutMin,
+        address[] calldata path,
+        address to,
+        uint deadline
+    ) external override returns (uint[] memory amounts) {
+        require(deadline >= block.timestamp, "Expired");
+        require(path.length >= 2, "Invalid path");
+        
+        amounts = new uint[](path.length);
+        amounts[0] = amountIn;
+        
+        // Get decimals for proper conversion
+        uint8 inDecimals = MockERC20(path[0]).decimals();
+        uint8 outDecimals = MockERC20(path[path.length - 1]).decimals();
+
+        // Simple 1:1 swap for testing (minus 0.3% fee), adjusted for decimals
+        uint amountOut;
+        if (inDecimals >= outDecimals) {
+            amountOut = (amountIn * 997) / (1000 * (10**(uint(inDecimals - outDecimals))));
+        } else {
+            amountOut = (amountIn * 997 * (10**(uint(outDecimals - inDecimals)))) / 1000;
+        }
+        
+        amounts[path.length - 1] = amountOut;
+        
+        require(amountOut >= amountOutMin, "Insufficient output amount");
+        
+        // Transfer tokens
+        MockERC20(path[0]).transferFrom(msg.sender, address(this), amountIn);
+        MockERC20(path[path.length - 1]).mint(to, amountOut);
+        
+        return amounts;
+    }
+    
+    // Implement other required functions with minimal logic
+    function addLiquidity(address, address, uint, uint, uint, uint, address, uint) external override returns (uint, uint, uint) {
+        return (0, 0, 0);
+    }
+    
+    function removeLiquidity(address, address, uint, uint, uint, address, uint) external override returns (uint, uint) {
+        return (0, 0);
+    }
+    
+    function swapTokensForExactTokens(uint, uint, address[] calldata, address, uint) external override returns (uint[] memory) {
+        return new uint[](0);
+    }
+    
+    function swapExactETHForTokens(uint, address[] calldata, address, uint) external payable override returns (uint[] memory) {
+        return new uint[](0);
+    }
+    
+    function swapTokensForExactETH(uint, uint, address[] calldata, address, uint) external override returns (uint[] memory) {
+        return new uint[](0);
+    }
+    
+    function swapExactTokensForETH(uint, uint, address[] calldata, address, uint) external override returns (uint[] memory) {
+        return new uint[](0);
+    }
+    
+    function swapETHForExactTokens(uint, address[] calldata, address, uint) external payable override returns (uint[] memory) {
+        return new uint[](0);
+    }
+    
+    function quote(uint, uint, uint) external pure override returns (uint) {
+        return 0;
+    }
+    
+    function getAmountOut(uint, uint, uint) external pure override returns (uint) {
+        return 0;
+    }
+    
+    function getAmountIn(uint, uint, uint) external pure override returns (uint) {
+        return 0;
+    }
+    
+    function getAmountsOut(uint, address[] calldata) external view override returns (uint[] memory) {
+        return new uint[](0);
+    }
+    
+    function getAmountsIn(uint, address[] calldata) external view override returns (uint[] memory) {
+        return new uint[](0);
+    }
+}
+
+contract FlashLoanExecutorTest is Test {
+    FlashLoanExecutor public executor;
+    MockAaveV3Pool public aavePool;
+    MockPoolAddressesProvider public addressProvider;
+    MockAaveOracle public aaveOracle;
+    MockWETH public weth;
+    MockERC20 public usdc;
+    MockERC20 public dai;
+    MockUniswapV2Router public uniswapRouter;
+    
+    address public owner;
+    address public user1;
+    address public user2;
+    
+    event StrategyCreated(uint256 indexed strategyId, address indexed creator, DataStructures.StrategyType strategyType, string name);
+    event StrategyExecuted(uint256 indexed strategyId, address indexed executor, uint256 profitGenerated, uint256 gasUsed, bool success);
+    event FlashLoanInitiated(address indexed initiator, uint256 indexed strategyId, address[] assets, uint256[] amounts);
+    
+    function setUp() public {
+        owner = address(this);
+        user1 = makeAddr("user1");
+        user2 = makeAddr("user2");
+        
+        // Deploy mock contracts
+        weth = new MockWETH();
+        usdc = new MockERC20("USD Coin", "USDC", 6);
+        dai = new MockERC20("Dai Stablecoin", "DAI", 18);
+        
+        aaveOracle = new MockAaveOracle();
+        aavePool = new MockAaveV3Pool();
+        addressProvider = new MockPoolAddressesProvider(address(aavePool), address(aaveOracle));
+        uniswapRouter = new MockUniswapV2Router(address(0), address(weth));
+        
+        // Deploy FlashLoanExecutor
+        executor = new FlashLoanExecutor(address(addressProvider), address(weth));
+        
+        // Setup initial state
+        aaveOracle.setAssetPrice(address(usdc), 1e18); // $1
+        aaveOracle.setAssetPrice(address(dai), 1e18); // $1
+        aaveOracle.setAssetPrice(address(weth), 2000e18); // $2000
+        
+        executor.setDEXRouter("UNISWAP_V2", address(uniswapRouter));
+        executor.setDEXRouter("UNISWAP_V3", address(uniswapRouter));
+        executor.setDEXRouter("SUSHISWAP", address(uniswapRouter));
+        executor.setDEXRouter("QUICKSWAP", address(uniswapRouter));
+        executor.setDEXRouter("BALANCER", address(0x1000000000000000000000000000000000000001)); // mock address
+        executor.setDEXRouter("CURVE", address(0x2000000000000000000000000000000000000002)); // mock address
+        executor.setDEXRouter("PANCAKESWAP", address(uniswapRouter));
+        executor.setDEXRouter("CUSTOM", address(uniswapRouter));
+        
+        // Fund accounts
+        vm.deal(user1, 10 ether);
+        vm.deal(user2, 10 ether);
+        usdc.mint(user1, 10000e6);
+        dai.mint(user1, 10000e18);
+        weth.mint(user1, 5e18);
+    }
+    
+    function makeValidSwapAction() internal view returns (DataStructures.Action memory) {
+        DataStructures.SwapParams memory swapParams = DataStructures.SwapParams({
+            dexType: DataStructures.DEXType.UNISWAP_V2,
+            tokenIn: address(usdc),
+            tokenOut: address(dai),
+            amountIn: 1000e6,
+            minAmountOut: 900e18,
+            path: new address[](2),
+            fee: 0,
+            recipient: address(0),
+            deadline: block.timestamp + 300,
+            extraData: ""
+        });
+        swapParams.path[0] = address(usdc);
+        swapParams.path[1] = address(dai);
+        return DataStructures.Action({
+            actionType: DataStructures.ActionType.SWAP,
+            target: address(uniswapRouter),
+            value: 0,
+            data: abi.encode(swapParams),
+            critical: true,
+            expectedGasUsage: 0,
+            description: "Test Swap"
+        });
+    }
+    
+    function testConstructor() public {
+        assertEq(address(executor.aavePool()), address(aavePool));
+        assertEq(address(executor.addressProvider()), address(addressProvider));
+        assertEq(address(executor.weth()), address(weth));
+        assertEq(executor.owner(), owner);
+        assertEq(executor.nextStrategyId(), 1);
+        assertTrue(executor.authorizedExecutors(owner));
+    }
+    
+    function testCreateSimpleSwapStrategy() public {
+        vm.startPrank(user1);
+        
+        // Create swap action
+        DataStructures.SwapParams memory swapParams = DataStructures.SwapParams({
+            dexType: DataStructures.DEXType.UNISWAP_V2,
+            tokenIn: address(usdc),
+            tokenOut: address(dai),
+            amountIn: 1000e6,
+            minAmountOut: 900e18,
+            path: new address[](2),
+            fee: 0, // placeholder for V2
+            recipient: address(0), // placeholder
+            deadline: block.timestamp + 300,
+            extraData: "" // placeholder
+        });
+        swapParams.path[0] = address(usdc);
+        swapParams.path[1] = address(dai);
+        
+        DataStructures.Action[] memory actions = new DataStructures.Action[](1);
+        actions[0] = DataStructures.Action({
+            actionType: DataStructures.ActionType.SWAP,
+            target: address(uniswapRouter),
+            value: 0,
+            data: abi.encode(swapParams),
+            critical: true,
+            expectedGasUsage: 0,
+            description: ""
+        });
+        
+        vm.expectEmit(true, true, false, true);
+        emit StrategyCreated(1, user1, DataStructures.StrategyType.ARBITRAGE, "Simple Swap Test");
+        
+        uint256 strategyId = executor.createStrategy(
+            "Simple Swap Test",
+            "Test swap strategy",
+            DataStructures.StrategyType.ARBITRAGE,
+            actions,
+            block.timestamp + 86400,
+            50 // 0.5% min profit
+        );
+        
+        assertEq(strategyId, 1);
+        
+        // Verify strategy was created
+        (
+            uint256 id,
+            string memory name,
+            string memory description,
+            DataStructures.StrategyType strategyType,
+            address creator,
+            bool active,
+            uint256 executionCount,
+            uint256 totalProfit,
+            uint256 createdAt,
+            uint256 deadline,
+            uint256 minProfitBPS
+        ) = executor.getStrategy(strategyId);
+        
+        assertEq(id, 1);
+        assertEq(name, "Simple Swap Test");
+        assertEq(description, "Test swap strategy");
+        assertTrue(uint256(strategyType) == uint256(DataStructures.StrategyType.ARBITRAGE));
+        assertEq(creator, user1);
+        assertTrue(active);
+        assertEq(executionCount, 0);
+        assertEq(totalProfit, 0);
+        assertEq(createdAt, block.timestamp);
+        
+        vm.stopPrank();
+    }
+    
+    function testExecuteFlashLoanStrategy() public {
+        // First create a strategy
+        vm.startPrank(user1);
+        
+        DataStructures.SwapParams memory swapParams = DataStructures.SwapParams({
+            dexType: DataStructures.DEXType.UNISWAP_V2,
+            tokenIn: address(usdc),
+            tokenOut: address(dai),
+            amountIn: 1000e6,
+            minAmountOut: 900e18,
+            path: new address[](2),
+            fee: 0, // placeholder for V2
+            recipient: address(0), // placeholder
+            deadline: block.timestamp + 300,
+            extraData: "" // placeholder
+        });
+        swapParams.path[0] = address(usdc);
+        swapParams.path[1] = address(dai);
+        
+        DataStructures.Action[] memory actions = new DataStructures.Action[](1);
+        actions[0] = DataStructures.Action({
+            actionType: DataStructures.ActionType.SWAP,
+            target: address(uniswapRouter),
+            value: 0,
+            data: abi.encode(swapParams),
+            critical: true,
+            expectedGasUsage: 0,
+            description: ""
+        });
+        
+        uint256 strategyId = executor.createStrategy(
+            "Flash Loan Swap",
+            "Test flash loan swap",
+            DataStructures.StrategyType.ARBITRAGE,
+            actions,
+            block.timestamp + 86400,
+            0 // No min profit for this test
+        );
+        
+        vm.stopPrank();
+        
+        // Authorize user1 to execute strategies
+        executor.setAuthorizedExecutor(user1, true);
+        
+        // Setup flash loan parameters
+        address[] memory assets = new address[](1);
+        assets[0] = address(usdc);
+        
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 1000e6;
+        
+        bytes memory userData = "";
+        
+        // Fund the executor with USDC to cover repayment and simulate profit
+        usdc.mint(address(executor), 1001e6);
+        
+        vm.startPrank(user1);
+        
+        vm.expectEmit(true, true, false, false);
+        emit FlashLoanInitiated(user1, strategyId, assets, amounts);
+        
+        // Execute the strategy
+        executor.executeStrategy(strategyId, assets, amounts, userData);
+        
+        vm.stopPrank();
+        
+        // Verify strategy execution was recorded
+        (, , , , , , uint256 executionCount, uint256 totalProfit, , , ) = executor.getStrategy(strategyId);
+        assertEq(executionCount, 1);
+        assertGt(totalProfit, 0);
+    }
+    
+    function test_Revert_When_ExecuteStrategyUnauthorized() public {
+        // Create strategy as user1
+        vm.startPrank(user1);
+        
+        DataStructures.Action[] memory actions = new DataStructures.Action[](1);
+        actions[0] = makeValidSwapAction();
+        
+        uint256 strategyId = executor.createStrategy(
+            "Test Strategy",
+            "Test",
+            DataStructures.StrategyType.ARBITRAGE,
+            actions,
+            block.timestamp + 86400,
+            0
+        );
+        
+        vm.stopPrank();
+        
+        // Try to execute as user2 (unauthorized)
+        vm.startPrank(user2);
+        
+        address[] memory assets = new address[](1);
+        assets[0] = address(usdc);
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 1000e6;
+        
+        // This should fail
+        vm.expectRevert();
+        executor.executeStrategy(strategyId, assets, amounts, "");
+        
+        vm.stopPrank();
+    }
+    
+    function testEmergencyStop() public {
+        // Create strategy
+        vm.startPrank(user1);
+        
+        DataStructures.Action[] memory actions = new DataStructures.Action[](1);
+        actions[0] = makeValidSwapAction();
+        
+        uint256 strategyId = executor.createStrategy(
+            "Test Strategy",
+            "Test",
+            DataStructures.StrategyType.ARBITRAGE,
+            actions,
+            block.timestamp + 86400,
+            0
+        );
+        
+        vm.stopPrank();
+        
+        // Enable emergency stop
+        executor.toggleEmergencyStop(true);
+        
+        // Authorize user1
+        executor.setAuthorizedExecutor(user1, true);
+        
+        vm.startPrank(user1);
+        
+        address[] memory assets = new address[](1);
+        assets[0] = address(usdc);
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 1000e6;
+        
+        // This should fail due to emergency stop
+        vm.expectRevert("Emergency stop active");
+        executor.executeStrategy(strategyId, assets, amounts, "");
+        
+        vm.stopPrank();
+        
+        // Disable emergency stop
+        executor.toggleEmergencyStop(false);
+        
+        // Now it should work
+        vm.startPrank(user1);
+        // Fund with USDC to repay loan + profit, otherwise it fails on repayment
+        usdc.mint(address(executor), 1001e6);
+        executor.executeStrategy(strategyId, assets, amounts, "");
+        vm.stopPrank();
+    }
+    
+    function testUpdateStrategy() public {
+        // Create strategy as user1
+        vm.startPrank(user1);
+        
+        DataStructures.Action[] memory actions = new DataStructures.Action[](1);
+        actions[0] = makeValidSwapAction();
+        
+        uint256 strategyId = executor.createStrategy(
+            "Test Strategy",
+            "Test",
+            DataStructures.StrategyType.ARBITRAGE,
+            actions,
+            block.timestamp + 86400,
+            0
+        );
+        
+        // Update strategy
+        executor.updateStrategy(strategyId, false, block.timestamp + 172800);
+        
+        vm.stopPrank();
+        
+        // Verify update
+        (, , , , , bool active, , , , , ) = executor.getStrategy(strategyId);
+        assertFalse(active);
+    }
+    
+    function test_Revert_When_UpdateStrategyUnauthorized() public {
+        // Create strategy as user1
+        vm.startPrank(user1);
+        
+        DataStructures.Action[] memory actions = new DataStructures.Action[](1);
+        actions[0] = makeValidSwapAction();
+        
+        uint256 strategyId = executor.createStrategy(
+            "Test Strategy",
+            "Test",
+            DataStructures.StrategyType.ARBITRAGE,
+            actions,
+            block.timestamp + 86400,
+            0
+        );
+        
+        vm.stopPrank();
+        
+        // Try to update as user2 (unauthorized)
+        vm.startPrank(user2);
+        
+        // This should fail
+        vm.expectRevert();
+        executor.updateStrategy(strategyId, false, block.timestamp + 172800);
+        
+        vm.stopPrank();
+    }
+    
+    function testSetDEXRouter() public {
+        address newRouter = makeAddr("newRouter");
+        
+        executor.setDEXRouter("sushiswap", newRouter);
+        
+        assertEq(executor.dexRouters("sushiswap"), newRouter);
+        assertTrue(executor.supportedDEXes("sushiswap"));
+    }
+    
+    function test_Revert_When_SetDEXRouterNonOwner() public {
+        vm.startPrank(user1);
+        
+        address newRouter = makeAddr("newRouter");
+        
+        // This should fail
+        vm.expectRevert();
+        executor.setDEXRouter("sushiswap", newRouter);
+        
+        vm.stopPrank();
+    }
+    
+    function testExtractProfit() public {
+        // Send some tokens to the executor
+        usdc.mint(address(executor), 1000e6);
+        
+        address recipient = makeAddr("recipient");
+        
+        executor.extractProfit(address(usdc), 500e6, recipient);
+        
+        assertEq(usdc.balanceOf(recipient), 500e6);
+        assertEq(usdc.balanceOf(address(executor)), 500e6);
+    }
+    
+    function testExtractAllProfits() public {
+        // Send ETH and WETH to executor
+        vm.deal(address(executor), 1 ether);
+        weth.mint(address(executor), 2 ether);
+        
+        address recipient = makeAddr("recipient");
+        
+        executor.extractAllProfits(recipient);
+        
+        assertEq(recipient.balance, 1 ether);
+        assertEq(weth.balanceOf(recipient), 2 ether);
+        assertEq(address(executor).balance, 0);
+        assertEq(weth.balanceOf(address(executor)), 0);
+    }
+    
+    function testGetUserStrategies() public {
+        vm.startPrank(user1);
+        
+        // Create multiple strategies
+        DataStructures.Action[] memory actions = new DataStructures.Action[](1);
+        actions[0] = makeValidSwapAction();
+        
+        uint256 strategy1 = executor.createStrategy(
+            "Strategy 1",
+            "Test 1",
+            DataStructures.StrategyType.ARBITRAGE,
+            actions,
+            block.timestamp + 86400,
+            0
+        );
+        
+        uint256 strategy2 = executor.createStrategy(
+            "Strategy 2",
+            "Test 2",
+            DataStructures.StrategyType.YIELD_FARMING,
+            actions,
+            block.timestamp + 86400,
+            0
+        );
+        
+        vm.stopPrank();
+        
+        uint256[] memory userStrategies = executor.getUserStrategies(user1);
+        
+        assertEq(userStrategies.length, 2);
+        assertEq(userStrategies[0], strategy1);
+        assertEq(userStrategies[1], strategy2);
+    }
+    
+    function testUpdateSafetyParams() public {
+        executor.updateSafetyParams(500, 100, 50 gwei);
+        
+        (uint256 maxSlippageBPS, , uint256 minProfitBPS, uint256 maxGasPrice, , ) = executor.safetyParams();
+        
+        assertEq(maxSlippageBPS, 500);
+        assertEq(minProfitBPS, 100);
+        assertEq(maxGasPrice, 50 gwei);
+    }
+    
+    function test_Revert_When_UpdateSafetyParamsExcessiveSlippage() public {
+        // Try to set slippage above maximum
+        vm.expectRevert();
+        executor.updateSafetyParams(1500, 100, 50 gwei); // 15% > 10% max
+    }
+    
+    function testReceiveEther() public {
+        uint256 amount = 1 ether;
+        
+        vm.deal(address(this), amount);
+        
+        (bool success, ) = address(executor).call{value: amount}("");
+        assertTrue(success);
+        
+        assertEq(address(executor).balance, amount);
+    }
+    
+    function test_Revert_When_ExecuteExpiredStrategy() public {
+        vm.startPrank(user1);
+        
+        DataStructures.Action[] memory actions = new DataStructures.Action[](1);
+        actions[0] = makeValidSwapAction();
+        
+        uint256 strategyId = executor.createStrategy(
+            "Expired Strategy",
+            "Test",
+            DataStructures.StrategyType.ARBITRAGE,
+            actions,
+            block.timestamp + 1, // Very short deadline
+            0
+        );
+        
+        // Fast forward time to expire the strategy
+        skip(2);
+        
+        vm.stopPrank();
+        
+        executor.setAuthorizedExecutor(user1, true);
+        
+        vm.startPrank(user1);
+        
+        address[] memory assets = new address[](1);
+        assets[0] = address(usdc);
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 1000e6;
+        
+        // This should fail due to expired strategy
+        vm.expectRevert();
+        executor.executeStrategy(strategyId, assets, amounts, "");
+        
+        vm.stopPrank();
+    }
+}
