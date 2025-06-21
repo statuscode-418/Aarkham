@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState,useEffect } from "react"
 import { motion, Reorder } from "framer-motion"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -22,67 +22,54 @@ interface DraggableCube {
   glowColor: string
   transactionId: string
 }
+interface FurucomboInterfaceProps {
+  initialTransactions?: TransactionCard[]
+  initialCubes?: DraggableCube[]
+  triggerAddDialog?: () => void
+  newToken?: {
+    protocol: string
+    token: string
+    amount: string
+  }
+  clearNewToken?: () => void
+}
+export default function FurucomboInterface({
+  initialTransactions = [],
+  initialCubes = [],
+  triggerAddDialog,
+  newToken,
+  clearNewToken,
+}: FurucomboInterfaceProps) {
+  
+  const [transactions, setTransactions] = useState<TransactionCard[]>(initialTransactions)
+  const [cubes, setCubes] = useState<DraggableCube[]>(initialCubes)
+useEffect(() => {
+  if (newToken) {
+    const nextIndex = transactions.length
+    const id = `${nextIndex + 1}`
 
-export default function FurucomboInterface() {
-  const [transactions, setTransactions] = useState<TransactionCard[]>([
-    {
-      id: "1",
-      protocol: "vitalik.eth",
-      token: "ETH",
-      amount: "36",
-      color: "bg-blue-500",
-    },
-    {
-      id: "2",
-      protocol: "Uniswap V3",
-      token: "USDC",
-      amount: "20000",
-      badge: "Swap Token",
-      color: "bg-pink-500",
-    },
-    {
-      id: "3",
-      protocol: "Lido",
-      token: "ETH",
-      amount: "10.9897",
-      badge: "Deposit",
-      color: "bg-blue-600",
-    },
-    {
-      id: "4",
-      protocol: "stETH",
-      token: "stETH",
-      amount: "10.9897",
-      color: "bg-gray-600",
-    },
-  ])
+    const newTransaction: TransactionCard = {
+      id,
+      protocol: newToken.protocol,
+      token: newToken.token,
+      amount: newToken.amount,
+      badge: nextIndex % 2 === 0 ? "Swap Token" : undefined,
+      color: "bg-purple-500",
+    }
 
-  const [cubes, setCubes] = useState<DraggableCube[]>([
-    {
-      id: "cube-1",
-      borderColor: "#9ca3af",
-      glowColor: "rgba(156, 163, 175, 0.3)",
-      transactionId: "1",
-    },
-    {
-      id: "cube-2",
-      borderColor: "#ec4899",
-      glowColor: "rgba(236, 72, 153, 0.3)",
-      transactionId: "2",
-    },
-    {
-      id: "cube-3",
-      borderColor: "#3b82f6",
-      glowColor: "rgba(59, 130, 246, 0.3)",
-      transactionId: "3",
-    },
-    {
-      id: "cube-4",
-      borderColor: "#6b7280",
-      glowColor: "rgba(107, 114, 128, 0.3)",
-      transactionId: "4",
-    },
-  ])
+    const newCube: DraggableCube = {
+      id: `cube-${id}`,
+      borderColor: "#8b5cf6",
+      glowColor: "rgba(139, 92, 246, 0.3)",
+      transactionId: id,
+    }
+
+    setTransactions([...transactions, newTransaction])
+    setCubes([...cubes, newCube])
+
+    clearNewToken?.()
+  }
+}, [newToken])
 
   const availableProtocols = [
     { protocol: "Compound", token: "COMP", amount: "150", color: "bg-green-500" },
@@ -109,6 +96,7 @@ export default function FurucomboInterface() {
     const newTransactions = newCubes.map((cube) => transactions.find((t) => t.id === cube.transactionId)!)
     setTransactions(newTransactions)
   }
+ 
 
   const addNewCubeAndTransaction = () => {
     const nextIndex = transactions.length
@@ -138,18 +126,18 @@ export default function FurucomboInterface() {
     setCubes([...cubes, newCube])
   }
 
-  const deleteCubeAndTransaction = (cubeId: string) => {
-    const cubeToDelete = cubes.find(cube => cube.id === cubeId)
-    if (!cubeToDelete) return
+const deleteCubeAndTransaction = (cubeId: string) => {
+  const cubeToDelete = cubes.find((cube) => cube.id === cubeId)
+  if (!cubeToDelete) return
 
-    // Remove the cube
-    const newCubes = cubes.filter(cube => cube.id !== cubeId)
-    setCubes(newCubes)
+  // Update cubes
+  const newCubes = cubes.filter((cube) => cube.id !== cubeId)
+  setCubes(newCubes)
 
-    // Remove the corresponding transaction
-    const newTransactions = transactions.filter(transaction => transaction.id !== cubeToDelete.transactionId)
-    setTransactions(newTransactions)
-  }
+  // Update transactions
+  const newTransactions = transactions.filter((tx) => tx.id !== cubeToDelete.transactionId)
+  setTransactions(newTransactions)
+}
 
   const clearAllCubesAndTransactions = () => {
     setCubes([])
@@ -262,15 +250,15 @@ export default function FurucomboInterface() {
     )
   }
 
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
-      <div className="flex">
-        {/* Main Content */}
-        <div className="flex-1 p-8">
-          <div className="flex items-start justify-center gap-20 max-w-7xl mx-auto">
-            {/* Left - Draggable Cubes */}
-            <div className="flex flex-col items-center space-y-2">
-              <Reorder.Group axis="y" values={cubes} onReorder={handleCubeReorder} className="space-y-2">
+    <div className="min-h-screen bg-gradient-to-b from-[#0d0221] via-[#22055d] to-[#0D001D] text-white">
+      {/* Main layout */}
+      <div className="flex-1 p-8">
+        <div className="flex items-start justify-center gap-2 md:gap-20 max-w-7xl mx-auto">
+          {/* Left Cube List */}
+          <div className="flex flex-col items-center space-y-2">
+            <Reorder.Group axis="y" values={cubes} onReorder={handleCubeReorder} className="space-y-2">
                 {cubes.map((cube, index) => (
                   <Reorder.Item key={cube.id} value={cube} className="cursor-grab active:cursor-grabbing relative group">
                     <motion.div
@@ -294,16 +282,17 @@ export default function FurucomboInterface() {
                       
                       {/* Delete button - appears on hover */}
                       <motion.button
-                        className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          deleteCubeAndTransaction(cube.id)
-                        }}
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                      >
-                        <X size={12} />
-                      </motion.button>
+  className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+  onClick={(e) => {
+    e.stopPropagation()
+    deleteCubeAndTransaction(cube.id)
+  }}
+  whileHover={{ scale: 1.1 }}
+  whileTap={{ scale: 0.9 }}
+>
+  <X size={12} />
+</motion.button>
+
                     </motion.div>
                   </Reorder.Item>
                 ))}
@@ -311,13 +300,13 @@ export default function FurucomboInterface() {
 
               {/* Add Cube Button */}
               <motion.div
-                className="cursor-pointer mt-2"
-                onClick={addNewCubeAndTransaction}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <EnhancedDottedCube />
-              </motion.div>
+              className="cursor-pointer mt-2"
+              onClick={triggerAddDialog}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <EnhancedDottedCube />
+            </motion.div>
 
               {/* Clear All Button */}
               {cubes.length > 0 && (
@@ -334,7 +323,7 @@ export default function FurucomboInterface() {
                     className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
                   >
                     <Trash2 size={16} />
-                    Clear All
+                    Destroy All Nodes
                   </Button>
                 </motion.div>
               )}
@@ -351,41 +340,55 @@ export default function FurucomboInterface() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
                 >
-                  <Card className="bg-gray-800/80 backdrop-blur-sm border-gray-700/50 hover:bg-gray-700/80 transition-all duration-300 shadow-lg hover:shadow-xl h-[120px] flex items-center">
-                    <CardContent className="p-5 w-full">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <div
-                            className={`w-10 h-10 rounded-full ${transaction.color} flex items-center justify-center flex-shrink-0 shadow-lg`}
-                          >
-                            <span className="text-white text-sm font-bold">{transaction.token.charAt(0)}</span>
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center space-x-2 mb-1">
-                              <span className="text-white font-semibold truncate text-base">
-                                {transaction.protocol}
-                              </span>
-                              {transaction.badge && (
-                                <Badge className="bg-pink-500/90 hover:bg-pink-500 text-xs flex-shrink-0 px-2 py-1">
-                                  {transaction.badge}
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="text-gray-400 text-sm font-medium">{transaction.token}</div>
-                          </div>
-                        </div>
-                        <div className="text-white font-bold text-xl flex-shrink-0 bg-gray-700/50 px-3 py-1 rounded-lg">
-                          {transaction.amount}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  {/* // ...inside your transaction cards map... */}
+<Card
+  className="bg-[#370a6e]/60 border-none rounded-2xl shadow-none px-0 py-0 h-[96px] flex items-center backdrop-blur-md backdrop-saturate-150"
+  style={{
+    boxShadow: "0 4px 32px 0 rgba(31, 38, 135, 0.15)",
+    border: "1px solid rgba(255,255,255,0.08)",
+  }}
+>
+  <CardContent className="p-0 w-full h-full flex flex-col justify-center">
+    <div className="flex items-center justify-between px-5 pt-4">
+      {/* Left: Badge, Protocol Icon, Protocol Name */}
+      <div className="flex items-center gap-2 min-w-0">
+        {/* Badge */}
+        {transaction.badge && (
+          <span className="bg-pink-500 text-white text-xs font-semibold px-3 py-1 rounded-md mr-2">
+            {transaction.badge}
+          </span>
+        )}
+        {/* Protocol Icon (placeholder: colored circle with first letter) */}
+        {/* <span className="w-5 h-5 rounded-full flex items-center justify-center mr-1" style={{ background: transaction.color }}>
+          <span className="text-white text-xs font-bold">{transaction.protocol.charAt(0)}</span>
+        </span> */}
+        {/* Protocol Name */}
+        {/* <span className="text-white font-semibold text-base mr-2">{transaction.protocol}</span> */}
+      </div>
+      {/* Amount */}
+      <div className="text-white font-bold text-lg flex-shrink-0">{transaction.amount}</div>
+    </div>
+    {/* Token swap row */}
+    <div className="flex items-center justify-between px-5 pb-2 pt-2">
+      {/* From Token */}
+      <div className="flex items-center gap-2">
+        {/* Token Icon (placeholder: colored circle with first letter) */}
+        <span className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center">
+          <span className="text-white text-base font-bold">{transaction.token.charAt(0)}</span>
+        </span>
+        {/* Token Name */}
+        <span className="text-white font-medium text-base">{transaction.token}</span>
+      </div>
+      
+    </div>
+  </CardContent>
+</Card>
                 </motion.div>
               ))}
             </div>
           </div>
         </div>
       </div>
-    </div>
+    
   )
 }

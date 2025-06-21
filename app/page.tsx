@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/resizable-navbar";
 import { HeroGeometric } from "@/components/ui/shape-landing-hero"
 import { MarqueeDemo } from "@/components/MarqueeDemo"
-import { ConnectButton } from "@rainbow-me/rainbowkit"
 export default function Page() {
   const navItems = [
       {
@@ -74,55 +73,7 @@ export default function Page() {
                   <NavItems items={navItems} />
                   <div className="flex items-center gap-4">
                     
-                  <ConnectButton.Custom>
-  {({
-    account,
-    chain,
-    openChainModal,
-    openConnectModal,
-    openAccountModal,
-    mounted,
-  }) => {
-    const ready = mounted;
-    const connected = ready && account && chain;
-
-    return (
-      <div
-        {...(!ready && {
-          'aria-hidden': true,
-          style: {
-            opacity: 0,
-            pointerEvents: 'none',
-            userSelect: 'none',
-          },
-        })}
-      >
-        {(() => {
-          if (!connected) {
-            return (
-              <NavbarButton
-                variant="primary"
-                onClick={openConnectModal}
-              >
-                Connect Wallet
-              </NavbarButton>
-            );
-          }
-
-          return (
-            <NavbarButton
-              variant="primary"
-              onClick={openAccountModal}
-            >
-              {account.displayName}
-            </NavbarButton>
-          );
-        })()}
-      </div>
-    );
-  }}
-</ConnectButton.Custom>
-
+                    <NavbarButton variant="primary">Connect Wallet</NavbarButton>
                   </div>
                 </NavBody>
         
@@ -142,7 +93,7 @@ export default function Page() {
                   >
                     {navItems.map((item, idx) => (
                       <a
-                        key={`mobile-link-${idx}`}
+                        key={mobile-link-${idx}}
                         href={item.link}
                         onClick={() => setIsMobileMenuOpen(false)}
                         className="relative text-neutral-600 dark:text-neutral-300"
@@ -195,9 +146,7 @@ export default function Page() {
         <Footer/>
       </div>
       </div>
-    </div>
+
     
   )
 }
-
-

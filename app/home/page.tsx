@@ -1,7 +1,7 @@
 "use client"
 import { useState } from "react"
 import FurucomboInterface from "@/components/dragable-cube-component"
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/ui/moving-border"
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Sparkles, Shield, Zap } from "lucide-react"
 export default function FurucomboPage() {
   const [started, setStarted] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -45,27 +46,66 @@ const handleAddToken = () => {
  
 
   return (
-    <div className="min-h-screen bg-[#0D001D] text-white">
+    <div className="h-full bg-gradient-to-b from-[#0d0221] via-[#22055d] to-[#0D001D] text-white">
       {!started ? (
-        <div className="h-screen flex items-center justify-center">
-          <Button
+        <div className="min-h-screen flex items-center justify-center">
+           <div className="max-w-2xl mx-auto text-center space-y-8">
+        {/* Header Icon */}
+        <div className="flex justify-center">
+          <div className="relative">
+            <div className="w-20 h-20 bg-gradient-to-b from-[#0d0221] via-[#22055d] to-[#0D001D] rounded-full flex items-center justify-center shadow-2xl">
+              <Sparkles className="w-10 h-10 text-white" />
+            </div>
+            <div className="absolute -inset-1 bg-gradient-to-b from-[#0d0221] via-[#22055d] to-[#0D001D] rounded-full blur opacity-75 animate-pulse"></div>
+          </div>
+        </div>
+
+        {/* Main Heading */}
+        <div className="space-y-4">
+          <h1 className="text-5xl md:text-6xl font-bold text-white leading-tight">
+            Token
+            <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              {" "}
+              Generator
+            </span>
+          </h1>
+          <p className="text-xl text-slate-300 max-w-lg mx-auto leading-relaxed">
+            To start generating your secure token, click on the start button below
+          </p>
+        </div>
+
+        
+
+        {/* Start Button */}
+        <div className="space-y-4">
+         <Button
             onClick={handleStart}
-            className="text-xl px-6 py-3 rounded-lg bg-purple-600 hover:bg-purple-700"
+            className="text-xl px-7 py-3 rounded-full bg-transparent"
           >
             Start
           </Button>
+          
+          <p className="text-slate-400 text-sm">Click the button above to begin the token generation process</p>
+        </div>
+
+        {/* Decorative Elements */}
+        <div className="absolute top-20 left-20 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-20 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-8 left-40 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+          
         </div>
       ) : (
         <>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogContent className="bg-gray-900 text-white border border-gray-700">
+            <DialogContent className="bg-gradient-to-b from-[#0d0221] via-[#22055d] to-[#0D001D] text-white border border-gray-700">
               <DialogHeader>
                 <DialogTitle>Add a Token</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 mt-2">
   {blockCount > 0 && (
     <Select onValueChange={(value) => setRouterName(value)} value={routerName}>
-      <SelectTrigger className="bg-gray-800 text-white">
+      <SelectTrigger className="bg-gradient-to-b from-[#0d0221] via-[#22055d] to-[#0D001D] text-white">
         <SelectValue placeholder="Select Router Name" />
       </SelectTrigger>
       <SelectContent>
@@ -79,7 +119,7 @@ const handleAddToken = () => {
   )}
 
   <Select onValueChange={(value) => setTokenName(value)} value={tokenName}>
-    <SelectTrigger className="bg-gray-800 text-white">
+    <SelectTrigger className="bg-gradient-to-b from-[#0d0221] via-[#22055d] to-[#0D001D] text-white">
       <SelectValue placeholder="Select Token Name" />
     </SelectTrigger>
     <SelectContent>
@@ -96,10 +136,10 @@ const handleAddToken = () => {
     type="number"
     value={tokenAmount}
     onChange={(e) => setTokenAmount(e.target.value)}
-    className="bg-gray-800 text-white"
+    className="bg-gradient-to-b from-[#0d0221] via-[#22055d] to-[#0D001D] text-white"
   />
 
-  <Button onClick={handleAddToken} className="bg-purple-600 hover:bg-purple-700 w-full">
+  <Button onClick={handleAddToken} className="h-10 w-full">
     Add Block
   </Button>
 </div>
