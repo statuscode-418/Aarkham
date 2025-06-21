@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from "react"
 import type React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Trash2, X } from "lucide-react"
 
 interface TokenData {
   id: string
@@ -148,6 +150,29 @@ export default function Component() {
     }
   }, [isDragging, draggedItem, dragOffset, tokens])
 
+  const deleteToken = (tokenId: string) => {
+    setTokens(prevTokens => prevTokens.filter(token => token.id !== tokenId))
+  }
+
+  const clearAllTokens = () => {
+    setTokens([])
+  }
+
+  const addNewToken = () => {
+    const newToken: TokenData = {
+      id: `${tokens.length + 1}`,
+      type: "Swap Token",
+      protocol: "New Protocol",
+      fromToken: "TOKEN",
+      toToken: "NEW",
+      fromAmount: "100",
+      toAmount: "100",
+      color: "bg-blue-600",
+      cubeColor: "#3b82f6",
+    }
+    setTokens([...tokens, newToken])
+  }
+
   const WireframeCube = ({
     tokenId,
     isDragged,
@@ -202,7 +227,7 @@ export default function Component() {
     dragPosition?: { x: number; y: number }
   }) => (
     <Card
-      className={`bg-gray-800 border-gray-700 text-white transition-all duration-300 ${
+      className={`bg-gray-800 border-gray-700 text-white transition-all duration-300 relative group ${
         isHovered ? "ring-2 ring-blue-500 bg-gray-750 scale-105" : ""
       } ${isDragged ? "opacity-40" : ""}`}
     >
@@ -231,13 +256,48 @@ export default function Component() {
           </div>
         )}
       </CardContent>
+      
+      {/* Delete button - appears on hover */}
+      <button
+        className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+        onClick={(e) => {
+          e.stopPropagation()
+          deleteToken(token.id)
+        }}
+      >
+        <X size={12} />
+      </button>
     </Card>
   )
 
   return (
     <div className="min-h-screen bg-zinc-900 p-8 select-none">
       <div ref={containerRef} className="max-w-4xl mx-auto relative">
-        <h1 className="text-2xl font-bold text-white mb-8">Rohan is Gay</h1>
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-2xl font-bold text-white">Rohan is Gay</h1>
+          
+          {/* Action buttons */}
+          <div className="flex gap-2">
+            <Button
+              onClick={addNewToken}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+            >
+              Add Block
+            </Button>
+            
+            {tokens.length > 0 && (
+              <Button
+                variant="destructive"
+                onClick={clearAllTokens}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+              >
+                <Trash2 size={16} />
+                Clear All
+              </Button>
+            )}
+          </div>
+        </div>
+        
         <div className="space-y-6 relative">
           {tokens.map((token, index) => {
             const isDragged = draggedItem === token.id

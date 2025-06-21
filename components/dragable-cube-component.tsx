@@ -1,10 +1,11 @@
-
 "use client"
 
 import { useState } from "react"
 import { motion, Reorder } from "framer-motion"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Trash2, X } from "lucide-react"
 
 interface TransactionCard {
   id: string
@@ -137,6 +138,24 @@ export default function FurucomboInterface() {
     setCubes([...cubes, newCube])
   }
 
+  const deleteCubeAndTransaction = (cubeId: string) => {
+    const cubeToDelete = cubes.find(cube => cube.id === cubeId)
+    if (!cubeToDelete) return
+
+    // Remove the cube
+    const newCubes = cubes.filter(cube => cube.id !== cubeId)
+    setCubes(newCubes)
+
+    // Remove the corresponding transaction
+    const newTransactions = transactions.filter(transaction => transaction.id !== cubeToDelete.transactionId)
+    setTransactions(newTransactions)
+  }
+
+  const clearAllCubesAndTransactions = () => {
+    setCubes([])
+    setTransactions([])
+  }
+
   const EnhancedCube = ({ borderColor, glowColor }: { borderColor: string; glowColor: string }) => {
     return (
       <div className="relative">
@@ -253,7 +272,7 @@ export default function FurucomboInterface() {
             <div className="flex flex-col items-center space-y-2">
               <Reorder.Group axis="y" values={cubes} onReorder={handleCubeReorder} className="space-y-2">
                 {cubes.map((cube, index) => (
-                  <Reorder.Item key={cube.id} value={cube} className="cursor-grab active:cursor-grabbing">
+                  <Reorder.Item key={cube.id} value={cube} className="cursor-grab active:cursor-grabbing relative group">
                     <motion.div
                       whileHover={{
                         scale: 1.08,
@@ -272,6 +291,19 @@ export default function FurucomboInterface() {
                       }}
                     >
                       <EnhancedCube borderColor={cube.borderColor} glowColor={cube.glowColor} />
+                      
+                      {/* Delete button - appears on hover */}
+                      <motion.button
+                        className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          deleteCubeAndTransaction(cube.id)
+                        }}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                      >
+                        <X size={12} />
+                      </motion.button>
                     </motion.div>
                   </Reorder.Item>
                 ))}
@@ -286,6 +318,26 @@ export default function FurucomboInterface() {
               >
                 <EnhancedDottedCube />
               </motion.div>
+
+              {/* Clear All Button */}
+              {cubes.length > 0 && (
+                <motion.div
+                  className="mt-4"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                >
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={clearAllCubesAndTransactions}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+                  >
+                    <Trash2 size={16} />
+                    Clear All
+                  </Button>
+                </motion.div>
+              )}
             </div>
 
             {/* Right - Transaction Cards */}
