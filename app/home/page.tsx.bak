@@ -242,7 +242,6 @@ export default function FurucomboPage() {
             newToken={newToken}
             clearNewToken={() => setNewToken(null)}
             triggerAddDialog={() => setIsDialogOpen(true)}
-            onDragDropOperation={handleDragDropOperation}
           />
         </>
       )}

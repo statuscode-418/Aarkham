@@ -32,6 +32,7 @@ interface FurucomboInterfaceProps {
     amount: string
   }
   clearNewToken?: () => void
+  onDragDropOperation?: () => Promise<boolean>
 }
 export default function FurucomboInterface({
   initialTransactions = [],
@@ -39,6 +40,7 @@ export default function FurucomboInterface({
   triggerAddDialog,
   newToken,
   clearNewToken,
+  onDragDropOperation,
 }: FurucomboInterfaceProps) {
   
   const [transactions, setTransactions] = useState<TransactionCard[]>(initialTransactions)
@@ -90,11 +92,32 @@ useEffect(() => {
   ]
 
   const handleCubeReorder = (newCubes: DraggableCube[]) => {
+    // Store the previous state in case we need to revert
+    const previousCubes = cubes
+    const previousTransactions = transactions
+
+    // Immediately update the visual state for smooth UX
     setCubes(newCubes)
 
     // Reorder transactions based on cube order
     const newTransactions = newCubes.map((cube) => transactions.find((t) => t.id === cube.transactionId)!)
     setTransactions(newTransactions)
+
+    // Call the drag drop operation callback if provided
+    if (onDragDropOperation) {
+      onDragDropOperation().then((success) => {
+        if (!success) {
+          // If the operation was rejected, revert the changes
+          setCubes(previousCubes)
+          setTransactions(previousTransactions)
+        }
+      }).catch((error) => {
+        console.error('Drag drop operation failed:', error)
+        // Revert on error as well
+        setCubes(previousCubes)
+        setTransactions(previousTransactions)
+      })
+    }
   }
  
 
