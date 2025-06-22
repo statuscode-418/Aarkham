@@ -13,7 +13,14 @@ import {
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ChatWidget } from "@/components/chat/chat-widget"
-import { Sparkles, LogOut } from "lucide-react"
+import { Sparkles, LogOut, Shield, Zap, Send, MessageCircle } from "lucide-react"
+
+// Add MetaMask types
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
 
 export default function FurucomboPage() {
   const { isAuthenticated, isLoading, logout } = useRequireAuth()
@@ -57,21 +64,67 @@ export default function FurucomboPage() {
     )
   }
 
-  const handleAddToken = () => {
+  // MetaMask simulation function
+  const triggerMetaMask = async () => {
+    if (typeof window.ethereum === 'undefined') {
+      alert('MetaMask is not installed!')
+      return false
+    }
+
+    try {
+      // Request account access if needed
+      await window.ethereum.request({ method: 'eth_requestAccounts' })
+      
+      // Simulate a transaction (this will show MetaMask popup)
+      const txHash = await window.ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: (await window.ethereum.request({ method: 'eth_accounts' }))[0],
+          to: '0x0000000000000000000000000000000000000000', // Null address for simulation
+          value: '0x0', // 0 ETH
+          data: '0x', // No data
+        }],
+      })
+      
+      console.log('Transaction hash:', txHash)
+      return true
+    } catch (error: any) {
+      if (error.code === 4001) {
+        console.log('User rejected the transaction')
+      } else {
+        console.error('MetaMask error:', error)
+      }
+      return false
+    }
+  }
+
+  const handleAddToken = async () => {
     if (blockCount === 0 && (!tokenName || !tokenAmount)) return
     if (blockCount > 0 && (!routerName || !tokenName || !tokenAmount)) return
 
-    setNewToken({
-      protocol: blockCount > 0 ? routerName : tokenName,
-      token: tokenName,
-      amount: tokenAmount,
-    })
+    // Trigger MetaMask popup
+    const success = await triggerMetaMask()
+    
+    if (success) {
+      // Only proceed if MetaMask transaction was successful
+      setNewToken({
+        protocol: blockCount > 0 ? routerName : tokenName,
+        token: tokenName,
+        amount: tokenAmount,
+      })
 
-    setTokenName("")
-    setRouterName("")
-    setTokenAmount("")
-    setIsDialogOpen(false)
-    setBlockCount((prev) => prev + 1)
+      setTokenName("")
+      setRouterName("")
+      setTokenAmount("")
+      setIsDialogOpen(false)
+      setBlockCount((prev) => prev + 1)
+    }
+  }
+
+  // Handler for drag and drop operations
+  const handleDragDropOperation = async () => {
+    const success = await triggerMetaMask()
+    return success
   }
   const handleStart = () => {
     setStarted(true)
