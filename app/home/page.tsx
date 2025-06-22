@@ -78,8 +78,26 @@ export default function FurucomboPage() {
     setIsDialogOpen(true)
   }
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    console.log('Logout button clicked')
+    try {
+      // Clear local states first
+      setStarted(false)
+      setIsDialogOpen(false)
+      setBlockCount(0)
+      setNewToken(null)
+      
+      // Clear localStorage
+      localStorage.removeItem('qr_validated')
+      localStorage.removeItem('qr_response')
+      console.log('Local storage cleared')
+      
+      // Call the logout function
+      logout()
+      console.log('Logout function called')
+    } catch (error) {
+      console.error('Logout error:', error)
+    }
   }
 
   return (
@@ -200,14 +218,14 @@ export default function FurucomboPage() {
       />
 
       {/* Logout Button */}
-      <div className="fixed top-4 right-4">
-        <Button
+      <div className="fixed top-4 right-4 z-50">
+        <button
           onClick={handleLogout}
-          className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white rounded-full px-4 py-2"
+          className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white rounded-full px-4 py-2 transition-colors duration-200 shadow-lg"
         >
           <LogOut className="w-5 h-5" />
           <span>Logout</span>
-        </Button>
+        </button>
       </div>
     </div>
   )
