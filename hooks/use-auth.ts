@@ -15,12 +15,12 @@ export function useAuth() {
     }
   }, [isConnected])
 
-  const logout = () => {
+  const logout = async () => {
     // Clear QR validation when logging out
     localStorage.removeItem('qr_validated')
     localStorage.removeItem('qr_response')
-    disconnect()
-    router.push('/')
+    await disconnect()
+    window.location.href = '/'
   }
 
   return {
