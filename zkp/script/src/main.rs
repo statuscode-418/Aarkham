@@ -200,7 +200,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         let cors = Cors::default()
             .allowed_origin("http://localhost:3000")
-            .allowed_origin("https://kyrexx-darkard2003-darks-projects-dcee960a.vercel.app")
+            .allowed_origin("https://arkham-eight.vercel.app")
             .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
             .allowed_headers(vec![
                 http::header::AUTHORIZATION,
